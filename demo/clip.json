@@ -1,0 +1,13 @@
+{
+  "seconds": 7,
+  "selector": "#app",
+  "steps": [
+    { "tap": "button.quick" },
+    { "wait": 700 },
+    { "start": true },
+    { "tap": "button.act-roll" },
+    { "wait": 2600 },
+    { "tap": ".panel button.primary" },
+    { "wait": 2200 }
+  ]
+}
