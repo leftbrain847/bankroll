@@ -1,7 +1,7 @@
 # Read nightly by leftbrain847/index. /new-project fills this in; edit any time.
-theme: ""             # one of the index's config.themes
-tags: []              # from the index's config.tags; new tags lowercase_with_underscores
-what: ""              # one line on what this is
-next: ""              # the next step
-active: false         # true pulls this repo's tasks into J's queue
-public: false         # informational; each sprint day's snapshot decides publishing
+theme: games          # one of the index's config.themes
+tags: [board_game, mobile, multiplayer, bots, artifact]
+what: "Moonhold: an original space-themed property-trading board game; pass-and-play plus bots, offline, rules engine with tests"
+next: "Play-test a full game with friends; then tag v0.1.0 for the Play internal track"
+active: true          # true pulls this repo's tasks into J's queue
+public: true          # informational; each sprint day's snapshot decides publishing
