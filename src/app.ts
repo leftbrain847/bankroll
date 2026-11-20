@@ -1,5 +1,5 @@
 /**
- * Moonhold as an app_builder module. The game is pass-and-play on one device with optional bots, so it runs
+ * Bankroll as an app_builder module. The game is pass-and-play on one device with optional bots, so it runs
  * entirely in the browser: there is no room, no server replay and no ranked score. The rules engine lives in
  * src/game/ (pure, seeded, no clock); the UI in src/client/.
  */

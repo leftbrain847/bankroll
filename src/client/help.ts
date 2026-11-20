@@ -1,4 +1,4 @@
-/** How to play Moonhold, written for this game. Plain text sections; the UI renders them as text. */
+/** How to play Bankroll, written for this game. Plain text sections; the UI renders them as text. */
 import { ECONOMY as E } from '../game/economy';
 import { money } from '../game/rules';
 

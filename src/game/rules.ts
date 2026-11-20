@@ -1,5 +1,5 @@
 /**
- * Moonhold rules engine. Pure and deterministic: `apply(state, player, action)` returns a new state (or an error)
+ * Bankroll rules engine. Pure and deterministic: `apply(state, player, action)` returns a new state (or an error)
  * and never touches the clock, Math.random or the DOM. Dice and deck shuffles come from a seeded generator kept in
  * the state, so a game replays exactly from its seed and its list of actions.
  */
@@ -705,7 +705,7 @@ function goBankrupt(s: GameState, rules: RulesConfig, p: number, creditor: Credi
     s.auction = null;
     s.auctionQueue = [];
     s.debts = [];
-    log(s, rules, 'win', `${P(s, w).name} is the last one standing and wins Moonhold!`, w);
+    log(s, rules, 'win', `${P(s, w).name} is the last one standing and wins Bankroll!`, w);
     return;
   }
   if (p === s.current) {

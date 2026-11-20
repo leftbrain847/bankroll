@@ -1,5 +1,5 @@
 /**
- * Moonhold client: setup, the orbit, the action panel and the sheets (space details, holdings, trades, rules).
+ * Bankroll client: setup, the orbit, the action panel and the sheets (space details, holdings, trades, rules).
  * Everything runs on this device. The rules engine (src/game/) decides what is legal; this file only renders the
  * state, turns taps into engine actions, paces the bots and saves the game locally.
  */
@@ -18,8 +18,8 @@ import { isMuted, play, setMuted, type Cue } from './sound';
 import { button, el, render, store } from './ui';
 
 const RULES = DEFAULT_RULES;
-const SAVE_KEY = 'moonhold.save.v1';
-const PREFS_KEY = 'moonhold.prefs.v1';
+const SAVE_KEY = 'bankroll.save.v1';
+const PREFS_KEY = 'bankroll.prefs.v1';
 const PACE = { bot: 700, botAuction: 380, afterCard: 1500, afterMove: 450 };
 const MAX_NAME = 14;
 

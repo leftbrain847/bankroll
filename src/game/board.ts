@@ -1,6 +1,6 @@
 /**
- * The Moonhold loop: 40 spaces, numbered 0-39 in play order. The layout of kinds (which space is a corner, a lot,
- * a gate, a works, a draw or a levy) follows the standard trading-game loop; every name here is Moonhold's own.
+ * The Bankroll loop: 40 spaces, numbered 0-39 in play order. The layout of kinds (which space is a corner, a lot,
+ * a gate, a works, a draw or a levy) follows the standard trading-game loop; every name here is Bankroll's own.
  */
 import { ECONOMY, lotTerms, type EconomyConfig, type LotTerms } from './economy';
 

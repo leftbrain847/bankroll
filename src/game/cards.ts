@@ -1,6 +1,6 @@
 /**
  * The two draw decks, 16 cards each. Card effects use the standard mix of effect types; every title and line of
- * text is Moonhold's own. Amounts are in glints (✦) and sit on the same scale as ECONOMY.
+ * text is Bankroll's own. Amounts are in glints (✦) and sit on the same scale as ECONOMY.
  */
 import type { DeckId } from './board';
 

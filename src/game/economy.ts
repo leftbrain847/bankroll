@@ -1,5 +1,5 @@
 /**
- * The whole Moonhold economy in one place. Prices, rents, building costs, salary, taxes, fines and starting cash
+ * The whole Bankroll economy in one place. Prices, rents, building costs, salary, taxes, fines and starting cash
  * are all generated from the constants below; nothing else in the game hard-codes a money value.
  *
  * Shape of the curve (tune the constants, keep the shape):

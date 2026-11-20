@@ -1,5 +1,5 @@
 /**
- * The orbit: Moonhold's 40 spaces drawn as beads on a ring, Launch at the top, play running clockwise. Lots are
+ * The orbit: Bankroll's 40 spaces drawn as beads on a ring, Launch at the top, play running clockwise. Lots are
  * coloured beads with their group's mark; the owner's colour rings the bead; domes and spires sit outside it.
  * Tokens travel just inside the ring. Canvas only, so the page holds no external or inline assets.
  */

@@ -1,4 +1,4 @@
-/** Moonhold's sounds, synthesised live with Web Audio: no audio files. */
+/** Bankroll's sounds, synthesised live with Web Audio: no audio files. */
 export type Cue = 'roll' | 'step' | 'coin' | 'pay' | 'buy' | 'card' | 'quarantine' | 'build' | 'bid' | 'win' | 'bankrupt' | 'tap';
 
 let ctx: AudioContext | null = null;
