@@ -1,5 +1,5 @@
 /**
- * Bankroll client: setup, the orbit, the action panel and the sheets (space details, holdings, trades, rules).
+ * Bankroll client: setup, the board, the action panel and the sheets (space details, holdings, trades, rules).
  * Everything runs on this device. The rules engine (src/game/) decides what is legal; this file only renders the
  * state, turns taps into engine actions, paces the bots and saves the game locally.
  */
@@ -18,7 +18,7 @@ import { isMuted, play, setMuted, type Cue } from './sound';
 import { button, el, render, store } from './ui';
 
 const RULES = DEFAULT_RULES;
-const SAVE_KEY = 'bankroll.save.v1';
+const SAVE_KEY = 'bankroll.save.v2';
 const PREFS_KEY = 'bankroll.prefs.v1';
 const PACE = { bot: 700, botAuction: 380, afterCard: 1500, afterMove: 450 };
 const MAX_NAME = 14;
@@ -83,7 +83,7 @@ const board = createBoardView(
 
 function cueFor(entries: LogEntry[]): Cue | null {
   const order: [LogEntry['kind'], Cue][] = [
-    ['win', 'win'], ['bankrupt', 'bankrupt'], ['quarantine', 'quarantine'], ['card', 'card'], ['buy', 'buy'], ['build', 'build'],
+    ['win', 'win'], ['bankrupt', 'bankrupt'], ['jail', 'jail'], ['card', 'card'], ['buy', 'buy'], ['build', 'build'],
     ['rent', 'pay'], ['tax', 'pay'], ['salary', 'coin'], ['auction', 'bid'], ['roll', 'roll'],
   ];
   for (const [k, c] of order) if (entries.some((e) => e.kind === k)) return c;
@@ -162,11 +162,11 @@ function spaceKindLabel(pos: number): string {
   const sp = BOARD.spaces[pos]!;
   switch (sp.kind) {
     case 'lot':
-      return `${BOARD.groups[sp.group]!.name} system`;
-    case 'gate':
-      return 'Gate';
-    case 'works':
-      return 'Works';
+      return `${BOARD.groups[sp.group]!.name}`;
+    case 'subway':
+      return 'Subway line';
+    case 'utility':
+      return 'Utility';
     case 'draw':
       return `${DECK_NAMES[sp.deck]} card`;
     case 'levy':
@@ -182,32 +182,32 @@ function spaceFacts(s: GameState, pos: number): HTMLElement {
   const e = RULES.economy;
   if (sp.kind === 'lot') {
     const t = sp.terms;
-    rows.push(['Price', money(t.price)], ['Fee', money(t.rent[0])], ['Whole system, bare', money(t.rent[0] * e.fullGroupMultiplier)]);
-    [1, 2, 3, 4].forEach((n) => rows.push([`${n} dome${n > 1 ? 's' : ''}`, money(t.rent[n]!)]));
-    rows.push(['Spire', money(t.rent[5])], ['Dome or spire costs', money(t.buildCost)], ['Mortgage', money(t.mortgage)]);
-  } else if (sp.kind === 'gate') {
-    rows.push(['Price', money(sp.price)], ...[1, 2, 3, 4].map((n) => [`${n} gate${n > 1 ? 's' : ''} held`, money(e.gateRent * 2 ** (n - 1))] as [string, string]), ['Mortgage', money(Math.round(sp.price * e.mortgageShare))]);
-  } else if (sp.kind === 'works') {
-    rows.push(['Price', money(sp.price)], ['One works held', `dice × ${e.worksMultiplierOne}`], ['Both held', `dice × ${e.worksMultiplierBoth}`], ['Mortgage', money(Math.round(sp.price * e.mortgageShare))]);
+    rows.push(['Price', money(t.price)], ['Rent', money(t.rent[0])], ['Rent with the whole set', money(t.rent[0] * e.fullGroupMultiplier)]);
+    [1, 2, 3, 4].forEach((n) => rows.push([`With ${n} house${n > 1 ? 's' : ''}`, money(t.rent[n]!)]));
+    rows.push(['With a hotel', money(t.rent[5])], ['Each house or hotel costs', money(t.buildCost)], ['Mortgage', money(t.mortgage)]);
+  } else if (sp.kind === 'subway') {
+    rows.push(['Price', money(sp.price)], ...[1, 2, 3, 4].map((n) => [`Owner has ${n} line${n > 1 ? 's' : ''}`, money(e.subwayRent * 2 ** (n - 1))] as [string, string]), ['Mortgage', money(Math.round(sp.price * e.mortgageShare))]);
+  } else if (sp.kind === 'utility') {
+    rows.push(['Price', money(sp.price)], ['Owner has one utility', `dice × ${e.utilityMultiplierOne}`], ['Owner has both', `dice × ${e.utilityMultiplierBoth}`], ['Mortgage', money(Math.round(sp.price * e.mortgageShare))]);
   } else if (sp.kind === 'levy') rows.push(['Pay', money(sp.amount)]);
   else if (sp.kind === 'draw') rows.push(['Effect', `Draw a ${DECK_NAMES[sp.deck]} card`]);
-  else if (sp.corner === 'launch') rows.push(['Stipend', `${money(e.salary)} each time you pass or stop here`]);
-  else if (sp.corner === 'quarantine') rows.push(['Visiting', 'Nothing happens'], ['Leave', `${money(e.quarantineFee)}, a pass, or a pair`]);
-  else if (sp.corner === 'drift') rows.push(['Effect', 'A free rest. Nothing happens']);
-  else rows.push(['Effect', 'Fly straight to Quarantine']);
+  else if (sp.corner === 'start') rows.push(['Salary', `${money(e.salary)} each time you pass or land here`]);
+  else if (sp.corner === 'jail') rows.push(['Just passing', 'Nothing happens'], ['Getting out', `${money(e.jailFine)}, a jail pass, or doubles`]);
+  else if (sp.corner === 'rest') rows.push(['Effect', 'Nothing happens. Take a breather']);
+  else rows.push(['Effect', 'Go straight to Jail']);
   const o = s.owner[pos];
   if (isOwnable(sp)) {
-    rows.push(['Held by', o === null || o === undefined ? 'The bank (for sale)' : `${s.players[o]!.name}${s.mortgaged[pos] ? ' (mortgaged)' : ''}`]);
+    rows.push(['Owner', o === null || o === undefined ? 'For sale' : `${s.players[o]!.name}${s.mortgaged[pos] ? ' (mortgaged)' : ''}`]);
     if (o !== null && o !== undefined) {
       const lvl = s.level[pos] ?? 0;
-      if (sp.kind === 'lot') rows.push(['Buildings', lvl === 5 ? 'Spire' : lvl ? `${lvl} dome${lvl > 1 ? 's' : ''}` : 'None']);
-      rows.push(['Fee now', sp.kind === 'works' ? `dice × ${rentFor(s, RULES, pos, 1)}` : money(rentFor(s, RULES, pos, 7))]);
+      if (sp.kind === 'lot') rows.push(['Buildings', lvl === 5 ? 'Hotel' : lvl ? `${lvl} house${lvl > 1 ? 's' : ''}` : 'None']);
+      rows.push(['Rent now', sp.kind === 'utility' ? `dice × ${rentFor(s, RULES, pos, 1)}` : money(rentFor(s, RULES, pos, 7))]);
     }
   }
   return el('dl', { className: 'facts' }, rows.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })]));
 }
 
-/** Build / sell / mortgage controls for one claim, when its owner may manage now. */
+/** Build / sell / mortgage controls for one property, when its owner may manage now. */
 function claimControls(s: GameState, pos: number): HTMLElement | null {
   const me = actorOf(s);
   if (s.owner[pos] !== me || !canManage(s, me) || s.players[me]?.bot) return null;
@@ -217,16 +217,16 @@ function claimControls(s: GameState, pos: number): HTMLElement | null {
   if (sp.kind === 'lot') {
     const lvl = s.level[pos] ?? 0;
     const can = (a: Action) => !apply(s, me, a, RULES).error;
-    if (lvl < MAX_LEVEL && ownsGroup(s, RULES, me, sp.group)) btns.push(button(`Build ${lvl === 4 ? 'spire' : 'dome'} ${money(sp.terms.buildCost)}`, () => act({ type: 'build', pos }), 'small', !can({ type: 'build', pos })));
-    if (lvl > 0) btns.push(button(`Sell ${lvl === 5 ? 'spire' : 'dome'}`, () => act({ type: 'sell', pos }), 'small ghost', !can({ type: 'sell', pos })));
+    if (lvl < MAX_LEVEL && ownsGroup(s, RULES, me, sp.group)) btns.push(button(`Build ${lvl === 4 ? 'hotel' : 'house'} ${money(sp.terms.buildCost)}`, () => act({ type: 'build', pos }), 'small', !can({ type: 'build', pos })));
+    if (lvl > 0) btns.push(button(`Sell ${lvl === 5 ? 'hotel' : 'house'}`, () => act({ type: 'sell', pos }), 'small ghost', !can({ type: 'sell', pos })));
     if (lvl > 0 && groupHasBuildings(s, RULES, sp.group)) {
       const g = BOARD.groups[sp.group]!;
       const flat: Action = { type: 'setLevels', group: sp.group, levels: g.lots.map(() => 0) };
-      if (can(flat) && !can({ type: 'sell', pos })) btns.push(button('Sell system down', () => act(flat), 'small ghost'));
+      if (can(flat) && !can({ type: 'sell', pos })) btns.push(button('Sell all in set', () => act(flat), 'small ghost'));
     }
   }
   const mval = Math.round(priceOf(sp) * e.mortgageShare);
-  if (s.mortgaged[pos]) btns.push(button(`Lift ${money(unmortgageCost(e, mval))}`, () => act({ type: 'unmortgage', pos }), 'small ghost', (s.players[me]?.cash ?? 0) < unmortgageCost(e, mval)));
+  if (s.mortgaged[pos]) btns.push(button(`Pay off ${money(unmortgageCost(e, mval))}`, () => act({ type: 'unmortgage', pos }), 'small ghost', (s.players[me]?.cash ?? 0) < unmortgageCost(e, mval)));
   else {
     const g = groupOf(RULES, pos);
     btns.push(button(`Mortgage for ${money(mval)}`, () => act({ type: 'mortgage', pos }), 'small ghost', g !== null && groupHasBuildings(s, RULES, g)));
@@ -235,7 +235,7 @@ function claimControls(s: GameState, pos: number): HTMLElement | null {
 }
 
 function levelText(lvl: number): string {
-  return lvl === 5 ? '★ spire' : lvl ? '▲'.repeat(lvl) : '';
+  return lvl === 5 ? 'hotel' : lvl ? `${lvl} house${lvl > 1 ? 's' : ''}` : '';
 }
 
 // ---------- sheets ----------
@@ -261,12 +261,16 @@ function close(): void {
 function spaceSheet(s: GameState, pos: number): HTMLElement {
   const sp = BOARD.spaces[pos]!;
   const grp = sp.kind === 'lot' ? BOARD.groups[sp.group] : null;
-  const head = el('div', { className: 'space-head' }, [
-    grp ? el('span', { className: 'swatch', text: grp.mark, style: { background: grp.color, color: grp.color === '#2b2d3a' ? '#fff' : '#0b1020' } }) : null,
-    el('span', { className: 'muted', text: spaceKindLabel(pos) }),
+  const dark = !grp || grp.color === '#2b2d3a';
+  const deed = el('div', { className: 'deed' }, [
+    el('div', { className: 'deed-band', style: { background: grp?.color ?? '#efe3c4', color: dark && grp ? '#fff' : '#2b2118' } }, [
+      el('small', { text: spaceKindLabel(pos).toUpperCase() }),
+      el('strong', { text: sp.name }),
+    ]),
+    spaceFacts(s, pos),
   ]);
   const controls = claimControls(s, pos);
-  return sheetFrame(sp.name, [head, spaceFacts(s, pos), controls, ui.error ? el('p', { className: 'error', text: ui.error }) : null].filter(Boolean) as Node[]);
+  return sheetFrame('Property card', [deed, controls, ui.error ? el('p', { className: 'error', text: ui.error }) : null].filter(Boolean) as Node[]);
 }
 
 function holdingsSheet(s: GameState, p: number): HTMLElement {
@@ -277,16 +281,16 @@ function holdingsSheet(s: GameState, p: number): HTMLElement {
     const grp = sp.kind === 'lot' ? BOARD.groups[sp.group]! : null;
     return el('li', { className: 'holding' }, [
       el('div', { className: 'holding-name' }, [
-        el('span', { className: 'swatch sm', text: grp?.mark ?? (sp.kind === 'gate' ? '◇' : '⬡'), style: { background: grp?.color ?? '#252c5c', color: grp && grp.color !== '#2b2d3a' ? '#0b1020' : '#fff' } }),
+        el('span', { className: 'swatch sm', text: grp?.mark ?? (sp.kind === 'subway' ? '◇' : '⬡'), style: { background: grp?.color ?? '#252c5c', color: grp && grp.color !== '#2b2d3a' ? '#0b1020' : '#fff' } }),
         el('button', { className: 'link', text: sp.name, onClick: () => ((ui.sheet = { kind: 'space', pos }), (ui.selected = pos), draw()) }),
         el('span', { className: 'muted', text: `${s.mortgaged[pos] ? 'mortgaged ' : ''}${levelText(s.level[pos] ?? 0)}` }),
       ]),
       claimControls(s, pos),
     ]);
   });
-  return sheetFrame(`${pl.name}'s claims`, [
-    el('p', { className: 'muted', text: `${money(pl.cash)} in hand · ${pl.passes.length} clearance pass${pl.passes.length === 1 ? '' : 'es'} · could raise ${money(liquidationValue(s, RULES, p))} in all` }),
-    rows.length ? el('ul', { className: 'holdings' }, rows) : el('p', { text: 'No claims yet.' }),
+  return sheetFrame(`${pl.name}'s properties`, [
+    el('p', { className: 'muted', text: `${money(pl.cash)} in hand · ${pl.passes.length} jail pass${pl.passes.length === 1 ? '' : 'es'} · could raise ${money(liquidationValue(s, RULES, p))} in all` }),
+    rows.length ? el('ul', { className: 'holdings' }, rows) : el('p', { text: 'No properties yet.' }),
     ui.error ? el('p', { className: 'error', text: ui.error }) : null,
   ].filter(Boolean) as Node[]);
 }
@@ -311,7 +315,7 @@ function tradeSheet(s: GameState, t: Extract<Sheet, { kind: 'trade' }>): HTMLEle
       const grp = sp.kind === 'lot' ? BOARD.groups[sp.group] : null;
       return el('li', {}, [
         el('button', { className: `pick${set.has(pos) ? ' on' : ''}`, onClick: () => pick(set, pos), attrs: { 'aria-pressed': String(set.has(pos)), type: 'button' } }, [
-          el('span', { className: 'swatch sm', text: grp?.mark ?? (sp.kind === 'gate' ? '◇' : '⬡'), style: { background: grp?.color ?? '#252c5c', color: grp && grp.color !== '#2b2d3a' ? '#0b1020' : '#fff' } }),
+          el('span', { className: 'swatch sm', text: grp?.mark ?? (sp.kind === 'subway' ? '◇' : '⬡'), style: { background: grp?.color ?? '#252c5c', color: grp && grp.color !== '#2b2d3a' ? '#0b1020' : '#fff' } }),
           el('span', { text: `${sp.name}${s.mortgaged[pos] ? ' (m)' : ''}` }),
         ]),
       ]);
@@ -338,13 +342,13 @@ function tradeSheet(s: GameState, t: Extract<Sheet, { kind: 'trade' }>): HTMLEle
       el('div', {}, [
         el('h3', { text: 'You give' }),
         lotList(me, t.give),
-        stepper(`Glints ${money(t.giveCash)}`, t.giveCash, meP.cash, (v) => (t.giveCash = v), [-50, -10, 10, 50]),
+        stepper(`Cash ${money(t.giveCash)}`, t.giveCash, meP.cash, (v) => (t.giveCash = v), [-50, -10, 10, 50]),
         meP.passes.length ? stepper(`Passes ${t.givePasses}`, t.givePasses, meP.passes.length, (v) => (t.givePasses = v), [-1, 1]) : null,
       ].filter(Boolean) as Node[]),
       el('div', {}, [
         el('h3', { text: `${them?.name ?? '—'} gives` }),
         lotList(t.to, t.get),
-        stepper(`Glints ${money(t.getCash)}`, t.getCash, them?.cash ?? 0, (v) => (t.getCash = v), [-50, -10, 10, 50]),
+        stepper(`Cash ${money(t.getCash)}`, t.getCash, them?.cash ?? 0, (v) => (t.getCash = v), [-50, -10, 10, 50]),
         them?.passes.length ? stepper(`Passes ${t.getPasses}`, t.getPasses, them.passes.length, (v) => (t.getPasses = v), [-1, 1]) : null,
       ].filter(Boolean) as Node[]),
     ]),
@@ -392,7 +396,7 @@ function panel(s: GameState): HTMLElement {
   if (p.bot) return el('div', { className: 'panel' }, kids);
 
   const row = (...b: (HTMLElement | null)[]) => el('div', { className: 'row' }, b.filter(Boolean) as HTMLElement[]);
-  const manageRow = () => row(button('My claims', () => ((ui.sheet = { kind: 'holdings', player: a }), draw()), 'ghost'),
+  const manageRow = () => row(button('My properties', () => ((ui.sheet = { kind: 'holdings', player: a }), draw()), 'ghost'),
     button('Trade', () => {
       const to = s.players.findIndex((q, i) => i !== a && !q.bankrupt);
       ui.sheet = { kind: 'trade', to, give: new Set(), get: new Set(), giveCash: 0, getCash: 0, givePasses: 0, getPasses: 0 };
@@ -431,7 +435,7 @@ function panel(s: GameState): HTMLElement {
     const pos = s.phase.pos;
     const price = priceOf(BOARD.spaces[pos]!);
     kids.push(
-      el('p', { text: `${BOARD.spaces[pos]!.name} is unclaimed.` }),
+      el('p', { text: `${BOARD.spaces[pos]!.name} is for sale.` }),
       row(
         button(`Buy for ${money(price)}`, () => act({ type: 'buy' }), 'primary', p.cash < price),
         button('Auction it', () => act({ type: 'decline' }), 'ghost'),
@@ -440,13 +444,13 @@ function panel(s: GameState): HTMLElement {
       p.cash < price ? manageRow() : null,
     );
   } else if (s.phase.kind === 'roll') {
-    if (p.inQuarantine) {
+    if (p.inJail) {
       kids.push(
-        el('p', { text: `In Quarantine (try ${p.tries + 1} of ${RULES.quarantineTries}).` }),
+        el('p', { text: `In Jail (try ${p.tries + 1} of ${RULES.jailTries}).` }),
         row(
-          button('Roll for a pair', () => act({ type: 'roll' }), 'primary act-roll'),
-          button(`Pay ${money(e.quarantineFee)}`, () => act({ type: 'payFine' }), 'ghost', p.cash < e.quarantineFee),
-          p.passes.length ? button('Use pass', () => act({ type: 'usePass' }), 'ghost') : null,
+          button('Roll for doubles', () => act({ type: 'roll' }), 'primary act-roll'),
+          button(`Pay ${money(e.jailFine)}`, () => act({ type: 'payFine' }), 'ghost', p.cash < e.jailFine),
+          p.passes.length ? button('Use jail pass', () => act({ type: 'usePass' }), 'ghost') : null,
         ),
       );
     } else kids.push(row(button(s.doubles ? 'Roll again' : 'Roll', () => act({ type: 'roll' }), 'primary act-roll')));
@@ -473,7 +477,7 @@ function autoRaise(): void {
   setGame(s);
 }
 
-// ---------- hub (centre of the orbit) ----------
+// ---------- hub (centre of the board) ----------
 
 function hub(s: GameState): HTMLElement {
   const lastRollSeq = Math.max(0, ...s.log.filter((e) => e.kind === 'roll').map((e) => e.seq));
@@ -501,13 +505,13 @@ function players(s: GameState): HTMLElement {
         tokenDot(p.token),
         el('span', { className: 'chip-name', text: p.name }),
         el('span', { className: 'chip-cash', text: p.bankrupt ? 'out' : money(p.cash) }),
-        el('span', { className: 'chip-meta', text: `${s.owner.filter((o) => o === i).length} claims${p.passes.length ? ` · ${p.passes.length} pass` : ''}${p.inQuarantine ? ' · Q' : ''}${p.bot ? ' · bot' : ''}` }),
+        el('span', { className: 'chip-meta', text: `${s.owner.filter((o) => o === i).length} properties${p.passes.length ? ` · ${p.passes.length} pass` : ''}${p.inJail ? ' · Q' : ''}${p.bot ? ' · bot' : ''}` }),
       ]),
     ])));
 }
 
 function logView(s: GameState): HTMLElement {
-  return el('ol', { className: 'log' }, [...s.log].reverse().slice(0, 8).map((e) => el('li', { text: e.text, className: e.kind })));
+  return el('ol', { className: 'log' }, [...s.log].reverse().slice(0, 8).map((e) => el('li', { text: e.text, className: `log-${e.kind}` })));
 }
 
 function topBar(): HTMLElement {
@@ -566,7 +570,7 @@ function setupScreen(): HTMLElement {
   ].filter(Boolean) as Node[]));
   return el('main', { className: 'setup' }, [
     topBar(),
-    el('p', { className: 'lede', text: 'Fly the orbit, claim moons, raise domes and spires, and outlast every rival trader. Pass one device around, add bots, or both.' }),
+    el('p', { className: 'lede', text: 'Buy property, build houses and hotels, collect rent, and outlast everyone else. Pass one device around, add bots, or both.' }),
     el('div', { className: 'row' }, [
       button('Quick game vs 3 bots', () => startGame([{ name: 'Captain', token: 0, bot: false }, ...[1, 2, 3].map((t) => ({ name: BOT_NAMES[t]!, token: t, bot: true }))]), 'primary quick'),
       saved && saved.phase.kind !== 'over' ? button('Resume saved game', () => {
@@ -587,7 +591,7 @@ function setupScreen(): HTMLElement {
         startGame(clean);
       }, 'primary start'),
     ].filter(Boolean) as Node[]),
-    el('p', { className: 'muted', text: 'Tip: tap any space on the orbit to see its prices and fees.' }),
+    el('p', { className: 'muted', text: 'Tip: tap any space on the board to see its prices and rents.' }),
   ]);
 }
 

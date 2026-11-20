@@ -1,6 +1,6 @@
 # Bankroll
 
-An app_builder `solo` app: a pass-and-play property-trading board game with bots, fully offline. The platform rules live in `platform/SPEC.md`; read its "For Claude Code" part before changing anything outside `src/` or `test/`.
+An app_builder `solo` app: a pass-and-play city property-trading board game with classic rules and bots, fully offline. The platform rules live in `platform/SPEC.md`; read its "For Claude Code" part before changing anything outside `src/` or `test/`.
 
 # Rules for this repo
 - Daily ship = adds one new input, transformation or output, runs end to end from a clean clone, with a passing test.
@@ -27,7 +27,7 @@ An app_builder `solo` app: a pass-and-play property-trading board game with bots
 ## App decisions (do not relitigate without asking)
 
 - **Mode:** `solo` (one device, no server, no ranking). Play target on; friends target on. Online multiplayer is out of scope.
-- **Originality:** the game plays by the standard property-trading rules, but every name, text, colour, icon, sound and layout is Bankroll's own. Never use the classic game's name, any pun on it, its publisher, or any of its names, art, colour order or text, in code, comments, assets or listings.
+- **Originality:** the game plays by the standard property-trading rules, but every name, text, colour, icon and sound is Bankroll's own, and code identifiers use plain terms (Jail, house, hotel, subway, utility). The README's "Commercial safety" section is the checklist. Never use the classic game's name, any pun on it, its publisher, or any of its names, art, colour order or text, in code, comments, assets or listings.
 - **Economy:** all money values are generated from `src/game/economy.ts`. Never paste a price or rent table.
 - **Engine:** `src/game/` is pure and deterministic (seeded generator in the state; no clock, no `Math.random`, no DOM). Every rule has a test in `test/rules.test.ts`.
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOARD, BOARD_SIZE, QUARANTINE } from '../src/game/board';
+import { BOARD, BOARD_SIZE, JAIL } from '../src/game/board';
 import { DECKS } from '../src/game/cards';
 import { ECONOMY, lotTerms } from '../src/game/economy';
 import { botStep, judgeTrade } from '../src/game/ai';
@@ -43,14 +43,14 @@ function roll(s: GameState, a: number, b: number): GameState {
 const give = (s: GameState, p: number, ...pos: number[]) => pos.forEach((q) => (s.owner[q] = p));
 
 describe('board layout', () => {
-  it('has 40 spaces with corners, lots, gates, works, draws and levies in the standard places', () => {
+  it('has 40 spaces with corners, lots, subways, utilities, draws and levies in the standard places', () => {
     const kinds = BOARD.spaces.map((s) => s.kind);
     expect(kinds).toHaveLength(BOARD_SIZE);
     expect([0, 10, 20, 30].map((i) => BOARD.spaces[i]?.kind)).toEqual(['corner', 'corner', 'corner', 'corner']);
-    expect(BOARD.gates).toEqual([5, 15, 25, 35]);
-    expect(BOARD.works).toEqual([12, 28]);
-    expect(BOARD.spaces.flatMap((s, i) => (s.kind === 'draw' && s.deck === 'salvage' ? [i] : []))).toEqual([2, 17, 33]);
-    expect(BOARD.spaces.flatMap((s, i) => (s.kind === 'draw' && s.deck === 'signal' ? [i] : []))).toEqual([7, 22, 36]);
+    expect(BOARD.subways).toEqual([5, 15, 25, 35]);
+    expect(BOARD.utilities).toEqual([12, 28]);
+    expect(BOARD.spaces.flatMap((s, i) => (s.kind === 'draw' && s.deck === 'civic' ? [i] : []))).toEqual([2, 17, 33]);
+    expect(BOARD.spaces.flatMap((s, i) => (s.kind === 'draw' && s.deck === 'news' ? [i] : []))).toEqual([7, 22, 36]);
     expect(BOARD.spaces.flatMap((s, i) => (s.kind === 'levy' ? [i] : []))).toEqual([4, 38]);
     expect(kinds.filter((k) => k === 'lot')).toHaveLength(22);
     expect(BOARD.groups.map((g) => g.lots.length)).toEqual([2, 3, 3, 3, 3, 3, 3, 2]);
@@ -75,7 +75,7 @@ describe('economy (generated, one config)', () => {
     }
   });
 
-  it('rent ladders follow roughly 5x, 15x, 40-45x, 50-55x, 60-70x base with a steep jump at 3 domes', () => {
+  it('rent ladders follow roughly 5x, 15x, 40-45x, 50-55x, 60-70x base with a steep jump at 3 houses', () => {
     for (const t of lots.flat()) {
       const m = t.rent.slice(1).map((r) => r / t.rent[0]);
       expect(m[0]).toBeGreaterThan(4);
@@ -106,31 +106,31 @@ describe('economy (generated, one config)', () => {
 
   it('keeps the classic balance within 15% on aggregate ratios to starting cash', () => {
     // Reference aggregates of the standard game, as multiples of its starting cash (not its tables).
-    const ref = { prices: 3.06, base: 0.25, hotels: 15.93, gate: 0.1333, salary: 0.1333, fine: 0.0333 };
+    const ref = { prices: 3.06, base: 0.25, hotels: 15.93, subway: 0.1333, salary: 0.1333, fine: 0.0333 };
     const sum = (f: (t: (typeof lots)[0][0]) => number) => lots.flat().reduce((a, t) => a + f(t), 0) / E.startingCash;
     const near = (v: number, r: number) => expect(Math.abs(v / r - 1)).toBeLessThan(0.15);
     near(sum((t) => t.price), ref.prices);
     near(sum((t) => t.rent[0]), ref.base);
     near(sum((t) => t.rent[5]), ref.hotels);
-    near(E.gatePrice / E.startingCash, ref.gate);
+    near(E.subwayPrice / E.startingCash, ref.subway);
     near(E.salary / E.startingCash, ref.salary);
-    near(E.quarantineFee / E.startingCash, ref.fine);
+    near(E.jailFine / E.startingCash, ref.fine);
   });
 });
 
 describe('cards', () => {
   it('has two decks of 16 with the standard mix of effect types', () => {
     const mix = (d: keyof typeof DECKS) => DECKS[d].reduce<Record<string, number>>((m, c) => ({ ...m, [c.effect.type]: (m[c.effect.type] ?? 0) + 1 }), {});
-    expect(DECKS.signal).toHaveLength(16);
-    expect(DECKS.salvage).toHaveLength(16);
-    expect(mix('signal')).toEqual({ advance: 5, nearest: 3, collect: 2, pass: 1, back: 1, toQuarantine: 1, repairs: 1, pay: 1, payEach: 1 });
-    expect(mix('salvage')).toEqual({ advance: 1, collect: 8, pay: 3, pass: 1, toQuarantine: 1, collectEach: 1, repairs: 1 });
-    expect(DECKS.signal.filter((c) => c.effect.type === 'nearest' && c.effect.kind === 'gate')).toHaveLength(2);
+    expect(DECKS.news).toHaveLength(16);
+    expect(DECKS.civic).toHaveLength(16);
+    expect(mix('news')).toEqual({ advance: 5, nearest: 3, collect: 2, pass: 1, back: 1, toJail: 1, repairs: 1, pay: 1, payEach: 1 });
+    expect(mix('civic')).toEqual({ advance: 1, collect: 8, pay: 3, pass: 1, toJail: 1, collectEach: 1, repairs: 1 });
+    expect(DECKS.news.filter((c) => c.effect.type === 'nearest' && c.effect.kind === 'subway')).toHaveLength(2);
   });
 });
 
-describe('movement and Launch', () => {
-  it('moves by 2d6 and pays salary for passing Launch', () => {
+describe('movement and Start', () => {
+  it('moves by 2d6 and pays salary for passing Start', () => {
     let s = game();
     s.players[0]!.pos = 36;
     s = roll(s, 3, 2); // 36 + 5 = 41 -> 1
@@ -138,7 +138,7 @@ describe('movement and Launch', () => {
     expect(s.players[0]!.cash).toBe(E.startingCash + E.salary);
   });
 
-  it('pays salary for landing exactly on Launch', () => {
+  it('pays salary for landing exactly on Start', () => {
     let s = game();
     s.players[0]!.pos = 34;
     s = roll(s, 2, 4);
@@ -146,72 +146,72 @@ describe('movement and Launch', () => {
     expect(s.players[0]!.cash).toBe(E.startingCash + E.salary);
   });
 
-  it('doubles roll again; three doubles in a row go to Quarantine', () => {
+  it('doubles roll again; three doubles in a row go to Jail', () => {
     let s = game();
     s = roll(s, 2, 2); // -> 4, Dock Levy
     expect(s.phase.kind).toBe('roll');
     expect(s.current).toBe(0);
     s = roll(s, 3, 3); // -> 10, only landing there
-    expect(s.players[0]!.inQuarantine).toBe(false);
+    expect(s.players[0]!.inJail).toBe(false);
     s = roll(s, 1, 1); // third doubles
-    expect(s.players[0]!.pos).toBe(QUARANTINE);
-    expect(s.players[0]!.inQuarantine).toBe(true);
+    expect(s.players[0]!.pos).toBe(JAIL);
+    expect(s.players[0]!.inJail).toBe(true);
     expect(s.phase.kind).toBe('end');
   });
 
-  it('the Tractor Beam sends you to Quarantine without salary, and ends the turn even on doubles', () => {
+  it('the Arrested space sends you to Jail without salary, and ends the turn even on doubles', () => {
     let s = game();
     s.players[0]!.pos = 26;
     s = roll(s, 2, 2);
-    expect(s.players[0]!.pos).toBe(QUARANTINE);
+    expect(s.players[0]!.pos).toBe(JAIL);
     expect(s.players[0]!.cash).toBe(E.startingCash);
     expect(s.phase.kind).toBe('end');
   });
 });
 
-describe('Quarantine', () => {
-  const quarantined = () => {
+describe('Jail', () => {
+  const jailed = () => {
     const s = game();
-    Object.assign(s.players[0]!, { pos: QUARANTINE, inQuarantine: true, tries: 0 });
+    Object.assign(s.players[0]!, { pos: JAIL, inJail: true, tries: 0 });
     return s;
   };
 
   it('leave by paying the fee, then roll as normal', () => {
-    let s = act(quarantined(), { type: 'payFine' });
-    expect(s.players[0]!.inQuarantine).toBe(false);
-    expect(s.players[0]!.cash).toBe(E.startingCash - E.quarantineFee);
+    let s = act(jailed(), { type: 'payFine' });
+    expect(s.players[0]!.inJail).toBe(false);
+    expect(s.players[0]!.cash).toBe(E.startingCash - E.jailFine);
     s = roll(s, 1, 2);
     expect(s.players[0]!.pos).toBe(13);
   });
 
-  it('leave with a clearance pass, which goes back to the bottom of its deck', () => {
-    let s = quarantined();
-    s.players[0]!.passes = ['s8'];
-    s.decks.signal = s.decks.signal.filter((c) => c !== 's8');
+  it('leave with a jail pass, which goes back to the bottom of its deck', () => {
+    let s = jailed();
+    s.players[0]!.passes = ['n8'];
+    s.decks.news = s.decks.news.filter((c) => c !== 'n8');
     s = act(s, { type: 'usePass' });
-    expect(s.players[0]!.inQuarantine).toBe(false);
-    expect(s.decks.signal.at(-1)).toBe('s8');
+    expect(s.players[0]!.inJail).toBe(false);
+    expect(s.decks.news.at(-1)).toBe('n8');
   });
 
   it('rolling doubles leaves and moves, with no extra roll', () => {
-    let s = roll(quarantined(), 3, 3);
-    expect(s.players[0]!.inQuarantine).toBe(false);
+    let s = roll(jailed(), 3, 3);
+    expect(s.players[0]!.inJail).toBe(false);
     expect(s.players[0]!.pos).toBe(16);
     if (s.phase.kind === 'buy') s = act(s, { type: 'buy' });
     expect(s.phase.kind).toBe('end');
   });
 
   it('after the third failed attempt you must pay and move', () => {
-    let s = quarantined();
+    let s = jailed();
     for (let i = 0; i < 2; i++) {
       s = roll(s, 1, 2);
-      expect(s.players[0]!.inQuarantine).toBe(true);
+      expect(s.players[0]!.inJail).toBe(true);
       s.phase = { kind: 'roll' };
     }
     s = roll(s, 1, 2);
-    expect(s.players[0]!.inQuarantine).toBe(false);
+    expect(s.players[0]!.inJail).toBe(false);
     expect(s.players[0]!.pos).toBe(13);
-    expect(s.players[0]!.cash).toBe(E.startingCash - E.quarantineFee);
+    expect(s.players[0]!.cash).toBe(E.startingCash - E.jailFine);
   });
 });
 
@@ -275,17 +275,17 @@ describe('rent', () => {
     expect(s.players[1]!.cash).toBe(E.startingCash + lot(3).terms.rent[0]);
   });
 
-  it('gate rent doubles per gate owned: 1x, 2x, 4x, 8x', () => {
+  it('subway rent doubles per subway owned: 1x, 2x, 4x, 8x', () => {
     const s = game();
     const r = [5, 15, 25, 35].map((g, i) => {
       give(s, 1, g);
       void i;
       return rentFor(s, DEFAULT_RULES, 5, 7);
     });
-    expect(r).toEqual([E.gateRent, E.gateRent * 2, E.gateRent * 4, E.gateRent * 8]);
+    expect(r).toEqual([E.subwayRent, E.subwayRent * 2, E.subwayRent * 4, E.subwayRent * 8]);
   });
 
-  it('works rent is the dice times 4 with one owned, times 10 with both', () => {
+  it('utilities rent is the dice times 4 with one owned, times 10 with both', () => {
     const s = game();
     give(s, 1, 12);
     expect(rentFor(s, DEFAULT_RULES, 12, 9)).toBe(36);
@@ -305,7 +305,7 @@ describe('building', () => {
   it('needs the whole group', () => {
     const s = game();
     give(s, 0, 6, 8);
-    expect(fails(s, { type: 'build', pos: 6 })).toMatch(/every lot/);
+    expect(fails(s, { type: 'build', pos: 6 })).toMatch(/every property/);
   });
 
   it('builds evenly: lots in a group differ by one level at most', () => {
@@ -318,13 +318,13 @@ describe('building', () => {
     expect(fails(s, { type: 'sell', pos: 8 })).toMatch(/evenly/);
   });
 
-  it('4 domes then a spire; a spire returns its 4 domes to the bank', () => {
+  it('4 houses then a hotel; a hotel returns its 4 houses to the bank', () => {
     let s = act(owner(), { type: 'setLevels', group: 1, levels: [4, 4, 4] });
-    expect(s.bank.domes).toBe(E.domes - 12);
+    expect(s.bank.houses).toBe(E.houses - 12);
     s = act(s, { type: 'build', pos: 6 });
     expect(s.level[6]).toBe(5);
-    expect(s.bank.domes).toBe(E.domes - 8);
-    expect(s.bank.spires).toBe(E.spires - 1);
+    expect(s.bank.houses).toBe(E.houses - 8);
+    expect(s.bank.hotels).toBe(E.hotels - 1);
     expect(fails(s, { type: 'build', pos: 6 })).toBeTruthy();
     expect(rentFor(s, DEFAULT_RULES, 6, 7)).toBe(lot(6).terms.rent[5]);
   });
@@ -343,25 +343,25 @@ describe('building', () => {
     expect(fails(s, { type: 'build', pos: 6 })).toMatch(/mortgage/);
   });
 
-  it('housing shortage: no dome when the bank is out', () => {
+  it('housing shortage: no house when the bank is out', () => {
     const s = owner();
-    s.bank.domes = 2;
-    expect(fails(s, { type: 'setLevels', group: 1, levels: [1, 1, 1] })).toMatch(/only 2 domes/);
-    expect(act(s, { type: 'setLevels', group: 1, levels: [1, 1, 0] }).bank.domes).toBe(0);
+    s.bank.houses = 2;
+    expect(fails(s, { type: 'setLevels', group: 1, levels: [1, 1, 1] })).toMatch(/only 2 houses/);
+    expect(act(s, { type: 'setLevels', group: 1, levels: [1, 1, 0] }).bank.houses).toBe(0);
   });
 
-  it('housing shortage: a spire cannot break into domes the bank lacks, but the group can sell down at once', () => {
+  it('housing shortage: a hotel cannot break into houses the bank lacks, but the group can sell down at once', () => {
     let s = act(owner(), { type: 'setLevels', group: 1, levels: [5, 5, 5] });
-    s.bank.domes = 0;
-    expect(fails(s, { type: 'sell', pos: 6 })).toMatch(/domes/);
+    s.bank.houses = 0;
+    expect(fails(s, { type: 'sell', pos: 6 })).toMatch(/houses/);
     s = act(s, { type: 'setLevels', group: 1, levels: [0, 0, 0] });
-    expect(s.bank.spires).toBe(E.spires);
+    expect(s.bank.hotels).toBe(E.hotels);
   });
 
-  it('a spire needs a spire in the bank', () => {
+  it('a hotel needs a hotel in the bank', () => {
     let s = act(owner(), { type: 'setLevels', group: 1, levels: [4, 4, 4] });
-    s.bank.spires = 0;
-    expect(fails(s, { type: 'build', pos: 6 })).toMatch(/spires/);
+    s.bank.hotels = 0;
+    expect(fails(s, { type: 'build', pos: 6 })).toMatch(/hotels/);
   });
 });
 
@@ -386,17 +386,17 @@ describe('mortgages', () => {
 });
 
 describe('trading', () => {
-  it('swaps lots, cash and clearance passes between players', () => {
+  it('swaps lots, cash and jail passes between players', () => {
     let s = game();
     give(s, 0, 1);
     give(s, 1, 3);
-    s.players[1]!.passes = ['v5'];
+    s.players[1]!.passes = ['c5'];
     s = act(s, { type: 'propose', to: 1, give: { lots: [1], cash: 100, passes: 0 }, get: { lots: [3], cash: 0, passes: 1 } });
     expect(actorOf(s)).toBe(1);
     s = act(s, { type: 'accept' });
     expect(s.owner[3]).toBe(0);
     expect(s.owner[1]).toBe(1);
-    expect(s.players[0]!.passes).toEqual(['v5']);
+    expect(s.players[0]!.passes).toEqual(['c5']);
     expect(s.players[1]!.cash).toBe(E.startingCash + 100);
   });
 
@@ -447,7 +447,7 @@ describe('debt and bankruptcy', () => {
     s.players[1]!.cash = 0;
     s.level[39] = 0;
     give(s, 0, 1);
-    s.players[0]!.passes = ['s8'];
+    s.players[0]!.passes = ['n8'];
     s.players[0]!.cash = 2;
     s.players[0]!.pos = 34;
     s.mortgaged[1] = true;
@@ -455,7 +455,7 @@ describe('debt and bankruptcy', () => {
     s = act(s, { type: 'bankrupt' });
     expect(s.players[0]!.bankrupt).toBe(true);
     expect(s.owner[1]).toBe(1);
-    expect(s.players[1]!.passes).toEqual(['s8']);
+    expect(s.players[1]!.passes).toEqual(['n8']);
     expect(s.current).toBe(1);
   });
 
@@ -489,7 +489,7 @@ describe('debt and bankruptcy', () => {
 });
 
 describe('cards in play', () => {
-  const drawOn = (deck: 'signal' | 'salvage', id: string, from: number, a: number, b: number, setup?: (s: GameState) => void) => {
+  const drawOn = (deck: 'news' | 'civic', id: string, from: number, a: number, b: number, setup?: (s: GameState) => void) => {
     let s = game();
     s.decks[deck] = [id, ...s.decks[deck].filter((c) => c !== id)];
     s.players[0]!.pos = from;
@@ -498,15 +498,15 @@ describe('cards in play', () => {
     return s;
   };
 
-  it('advance cards move you and pay salary when they pass Launch', () => {
-    const s = drawOn('signal', 's3', 33, 1, 2); // 36 -> Glowmere (11), passing Launch
+  it('advance cards move you and pay salary when they pass Start', () => {
+    const s = drawOn('news', 'n3', 33, 1, 2); // 36 -> Glowmere (11), passing Start
     expect(s.players[0]!.pos).toBe(11);
     expect(s.players[0]!.cash).toBe(E.startingCash + E.salary);
   });
 
-  it('a fly-to-Launch card pays the stipend even when landing on Launch pays nothing', () => {
+  it('a fly-to-Start card pays the salary even when landing on Start pays nothing', () => {
     let s = game();
-    s.decks.signal = ['s1', ...s.decks.signal.filter((c) => c !== 's1')];
+    s.decks.news = ['n1', ...s.decks.news.filter((c) => c !== 'n1')];
     s.players[0]!.pos = 4;
     rig(s, 1, 2);
     const r = apply(s, 0, { type: 'roll' }, { ...DEFAULT_RULES, salaryOnLanding: false });
@@ -514,26 +514,26 @@ describe('cards in play', () => {
     expect(r.state?.players[0]!.cash).toBe(E.startingCash + E.salary);
   });
 
-  it('nearest gate: pay double the toll', () => {
-    const s = drawOn('signal', 's5', 4, 1, 2, (st) => give(st, 1, 15)); // 7 -> Rift Gate (15)
+  it('nearest subway: pay double the toll', () => {
+    const s = drawOn('news', 'n5', 4, 1, 2, (st) => give(st, 1, 15)); // 7 -> Rift Gate (15)
     expect(s.players[0]!.pos).toBe(15);
-    expect(s.players[1]!.cash).toBe(E.startingCash + E.gateRent * 2);
+    expect(s.players[1]!.cash).toBe(E.startingCash + E.subwayRent * 2);
   });
 
-  it('nearest works: roll and pay ten times the dice', () => {
-    const s = drawOn('signal', 's4', 34, 1, 1, (st) => give(st, 1, 12)); // 36 -> Sail Works (12), passes Launch
+  it('nearest utilities: roll and pay ten times the dice', () => {
+    const s = drawOn('news', 'n4', 34, 1, 1, (st) => give(st, 1, 12)); // 36 -> Sail Works (12), passes Start
     const [a, b] = s.lastRoll!;
     expect(s.players[1]!.cash).toBe(E.startingCash + (a + b) * 10);
   });
 
   it('move back three spaces', () => {
-    const s = drawOn('signal', 's9', 4, 1, 2); // 7 -> 4 (Dock Levy)
+    const s = drawOn('news', 'n9', 4, 1, 2); // 7 -> 4 (Dock Levy)
     expect(s.players[0]!.pos).toBe(4);
     expect(s.players[0]!.cash).toBe(E.startingCash - E.taxHigh);
   });
 
-  it('repairs charge per dome and per spire', () => {
-    const s = drawOn('signal', 's11', 4, 1, 2, (st) => {
+  it('repairs charge per house and per hotel', () => {
+    const s = drawOn('news', 'n11', 4, 1, 2, (st) => {
       give(st, 0, 37, 39);
       st.level[37] = 4;
       st.level[39] = 5;
@@ -542,19 +542,19 @@ describe('cards in play', () => {
   });
 
   it('pay each player and collect from each player', () => {
-    let s = drawOn('signal', 's15', 4, 1, 2);
+    let s = drawOn('news', 'n15', 4, 1, 2);
     expect(s.players[0]!.cash).toBe(E.startingCash - 120);
     expect(s.players[2]!.cash).toBe(E.startingCash + 60);
-    s = drawOn('salvage', 'v9', 0, 1, 1);
+    s = drawOn('civic', 'c9', 0, 1, 1);
     expect(s.players[0]!.cash).toBe(E.startingCash + 24);
   });
 
-  it('go to Quarantine, and the clearance pass is kept out of the deck', () => {
-    let s = drawOn('signal', 's10', 4, 1, 2);
-    expect(s.players[0]!.inQuarantine).toBe(true);
-    s = drawOn('signal', 's8', 4, 1, 2);
-    expect(s.players[0]!.passes).toEqual(['s8']);
-    expect(s.decks.signal).not.toContain('s8');
+  it('go to Jail, and the jail pass is kept out of the deck', () => {
+    let s = drawOn('news', 'n10', 4, 1, 2);
+    expect(s.players[0]!.inJail).toBe(true);
+    s = drawOn('news', 'n8', 4, 1, 2);
+    expect(s.players[0]!.passes).toEqual(['n8']);
+    expect(s.decks.news).not.toContain('n8');
   });
 });
 

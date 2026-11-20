@@ -1,13 +1,13 @@
 /**
- * The whole Bankroll economy in one place. Prices, rents, building costs, salary, taxes, fines and starting cash
+ * The whole Bankroll economy in one place (amounts in dollars). Prices, rents, building costs, salary, taxes, fines and starting cash
  * are all generated from the constants below; nothing else in the game hard-codes a money value.
  *
  * Shape of the curve (tune the constants, keep the shape):
  *  - Lot prices rise steadily around the loop: each group's opening price follows a gentle quadratic in the group
  *    index, and the last lot of every group carries a small premium.
  *  - Base rent is a share of the lot price that grows with the group index, so later lots earn more per credit.
- *  - Each lot's rent ladder multiplies its base rent: about 5x, 15x, 40-45x, 50-55x and 60-70x for 1-4 domes and a
- *    spire, with the steep jump at the third dome. The multipliers ease slightly from the cheap end to the dear end.
+ *  - Each lot's rent ladder multiplies its base rent: about 5x, 15x, 40-45x, 50-55x and 60-70x for 1-4 houses and a
+ *    hotel, with the steep jump at the third house. The multipliers ease slightly from the cheap end to the dear end.
  *  - Building cost is one of four tiers, one per side of the loop.
  */
 
@@ -25,7 +25,7 @@ export interface EconomyConfig {
   rentRateB: number;
   rentRateC: number;
   lastLotRentBoost: number;
-  /** Rent multipliers of base rent for 1, 2, 3, 4 domes and a spire, at the cheapest group and at the dearest. */
+  /** Rent multipliers of base rent for 1, 2, 3, 4 houses and a hotel, at the cheapest group and at the dearest. */
   ladderCheap: [number, number, number, number, number];
   ladderDear: [number, number, number, number, number];
   /** Rents on the ladder round to this step once they pass ladderStepFrom. */
@@ -33,7 +33,7 @@ export interface EconomyConfig {
   ladderStepFrom: number;
   /** A complete, unimproved group charges base rent times this. */
   fullGroupMultiplier: number;
-  /** Building (dome) cost for side 0..3 = buildCostA + buildCostB*side. A spire costs the same as a dome. */
+  /** Building cost for side 0..3 = buildCostA + buildCostB*side. A hotel costs the same as a house. */
   buildCostA: number;
   buildCostB: number;
   /** Selling a building back to the bank refunds this share of its cost. */
@@ -41,22 +41,22 @@ export interface EconomyConfig {
   /** Mortgage pays this share of the lot price; lifting it costs the mortgage plus mortgageInterest. */
   mortgageShare: number;
   mortgageInterest: number;
-  /** Gates (transit): price, and rent with one gate owned. Each further gate doubles it. */
-  gatePrice: number;
-  gateRent: number;
-  /** Works (utilities): price, and rent as dice total times these (one owned, both owned). */
-  worksPrice: number;
-  worksMultiplierOne: number;
-  worksMultiplierBoth: number;
+  /** Subway lines (transit): price, and rent with one subway owned. Each further subway doubles it. */
+  subwayPrice: number;
+  subwayRent: number;
+  /** Utilities: price, and rent as dice total times these (one owned, both owned). */
+  utilityPrice: number;
+  utilityMultiplierOne: number;
+  utilityMultiplierBoth: number;
   /** Money in and out. */
   startingCash: number;
   salary: number;
   taxHigh: number;
   taxLow: number;
-  quarantineFee: number;
-  /** Bank building supply. */
-  domes: number;
-  spires: number;
+  jailFine: number;
+  /** Bank building supply: houses (houses) and hotels (hotels). */
+  houses: number;
+  hotels: number;
   /** Smallest raise at an auction. */
   minBidStep: number;
 }
@@ -81,25 +81,25 @@ export const ECONOMY: EconomyConfig = {
   buildingRefund: 0.5,
   mortgageShare: 0.5,
   mortgageInterest: 0.1,
-  gatePrice: 230,
-  gateRent: 30,
-  worksPrice: 175,
-  worksMultiplierOne: 4,
-  worksMultiplierBoth: 10,
+  subwayPrice: 230,
+  subwayRent: 30,
+  utilityPrice: 175,
+  utilityMultiplierOne: 4,
+  utilityMultiplierBoth: 10,
   startingCash: 1800,
   salary: 240,
   taxHigh: 240,
   taxLow: 115,
-  quarantineFee: 60,
-  domes: 32,
-  spires: 12,
+  jailFine: 60,
+  houses: 32,
+  hotels: 12,
   minBidStep: 5,
 };
 
 /** Generated terms for one lot. */
 export interface LotTerms {
   price: number;
-  /** [base, 1 dome, 2, 3, 4 domes, spire] */
+  /** [base, 1 house, 2, 3, 4 houses, hotel] */
   rent: [number, number, number, number, number, number];
   buildCost: number;
   mortgage: number;
@@ -135,6 +135,6 @@ export const mortgageOf = (e: EconomyConfig, price: number): number => Math.roun
 export const unmortgageCost = (e: EconomyConfig, mortgage: number): number => Math.ceil(mortgage * (1 + e.mortgageInterest));
 /** Fee paid when a mortgaged lot changes hands (interest only). */
 export const transferFee = (e: EconomyConfig, mortgage: number): number => Math.ceil(mortgage * e.mortgageInterest);
-export const gateRent = (e: EconomyConfig, owned: number): number => (owned <= 0 ? 0 : e.gateRent * 2 ** (owned - 1));
-export const worksRent = (e: EconomyConfig, owned: number, dice: number): number =>
-  owned <= 0 ? 0 : dice * (owned >= 2 ? e.worksMultiplierBoth : e.worksMultiplierOne);
+export const subwayRent = (e: EconomyConfig, owned: number): number => (owned <= 0 ? 0 : e.subwayRent * 2 ** (owned - 1));
+export const utilityRent = (e: EconomyConfig, owned: number, dice: number): number =>
+  owned <= 0 ? 0 : dice * (owned >= 2 ? e.utilityMultiplierBoth : e.utilityMultiplierOne);

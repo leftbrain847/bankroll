@@ -24,7 +24,7 @@ export interface BotConfig {
   buyOutOffer: number;
   /** Turns before re-offering for the same lot. */
   reofferAfter: number;
-  /** Unowned lots left on the board above which the bot pays to leave Quarantine early. */
+  /** Unowned lots left on the board above which the bot pays to leave Jail early. */
   leaveEarlyWhileUnowned: number;
 }
 
@@ -54,8 +54,8 @@ export function valueToGain(s: GameState, rules: RulesConfig, p: number, pos: nu
     const theirs = new Set(lots.map((q) => s.owner[q]).filter((o) => o !== null && o !== p));
     if (mine === lots.length - 1 && !lots.some((q) => q !== pos && s.owner[q] !== p)) v *= bot.completeBoost;
     else if (theirs.size === 1 && lots.filter((q) => s.owner[q] !== null && s.owner[q] !== p).length === lots.length - 1) v *= bot.blockBoost;
-  } else if (sp.kind === 'gate') {
-    const n = rules.board.gates.filter((q) => s.owner[q] === p).length;
+  } else if (sp.kind === 'subway') {
+    const n = rules.board.subways.filter((q) => s.owner[q] === p).length;
     v *= 1 + 0.15 * n;
   }
   return Math.round(v);
@@ -73,7 +73,7 @@ function valueToGive(s: GameState, rules: RulesConfig, p: number, receiver: numb
 
 function bundleValue(s: GameState, rules: RulesConfig, who: number, other: number, b: Bundle, gaining: boolean, bot: BotConfig): number {
   const lots = b.lots.reduce((t, pos) => t + (gaining ? valueToGain(s, rules, who, pos, bot) : valueToGive(s, rules, other, who, pos, bot)), 0);
-  return lots + b.cash + b.passes * rules.economy.quarantineFee;
+  return lots + b.cash + b.passes * rules.economy.jailFine;
 }
 
 const ok = (s: GameState, p: number, a: Action, rules: RulesConfig): boolean => !apply(s, p, a, rules).error;
@@ -91,7 +91,7 @@ export function raiseCash(s: GameState, rules: RulesConfig, p: number): Action |
     const top = [...g.lots].sort((a, b) => (s.level[b] ?? 0) - (s.level[a] ?? 0))[0]!;
     const sell: Action = { type: 'sell', pos: top };
     if (ok(s, p, sell, rules)) return sell;
-    // A spire can't break into domes during a shortage: sell the whole group down at once.
+    // A hotel can't break into houses during a shortage: sell the whole group down at once.
     const flat: Action = { type: 'setLevels', group: gi, levels: g.lots.map(() => 0) };
     if (ok(s, p, flat, rules)) return flat;
   }
@@ -212,11 +212,11 @@ export function botAction(s: GameState, rules: RulesConfig = DEFAULT_RULES, bot:
       if (step && ok(s, p, step, rules)) return step;
     }
     if (ph.kind === 'roll') {
-      if (me.inQuarantine) {
+      if (me.inJail) {
         const unowned = s.owner.filter((o, i) => o === null && isOwnable(rules.board.spaces[i]!)).length;
         const early = unowned >= bot.leaveEarlyWhileUnowned;
         if (early && me.passes.length) return { type: 'usePass' };
-        if (early && me.cash - rules.economy.quarantineFee >= reserve(rules, bot)) return { type: 'payFine' };
+        if (early && me.cash - rules.economy.jailFine >= reserve(rules, bot)) return { type: 'payFine' };
       }
       return { type: 'roll' };
     }

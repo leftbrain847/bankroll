@@ -3,20 +3,20 @@
  * and never touches the clock, Math.random or the DOM. Dice and deck shuffles come from a seeded generator kept in
  * the state, so a game replays exactly from its seed and its list of actions.
  */
-import { BOARD, BOARD_SIZE, isOwnable, priceOf, QUARANTINE, type Board, type DeckId } from './board';
+import { BOARD, BOARD_SIZE, isOwnable, priceOf, JAIL, type Board, type DeckId } from './board';
 import { cardById, DECKS, DECK_NAMES, type Card } from './cards';
-import { ECONOMY, gateRent, transferFee, unmortgageCost, worksRent, type EconomyConfig } from './economy';
+import { ECONOMY, subwayRent, transferFee, unmortgageCost, utilityRent, type EconomyConfig } from './economy';
 
 export interface RulesConfig {
   economy: EconomyConfig;
   board: Board;
   minPlayers: number;
   maxPlayers: number;
-  /** Doubles in a row that send you to Quarantine. */
+  /** Doubles in a row that send you to Jail. */
   doublesLimit: number;
-  /** Failed doubles attempts in Quarantine before you must pay and leave. */
-  quarantineTries: number;
-  /** Salary for landing exactly on Launch, as well as passing it. */
+  /** Failed doubles attempts in Jail before you must pay and leave. */
+  jailTries: number;
+  /** Salary for landing exactly on Start, as well as passing it. */
   salaryOnLanding: boolean;
   /** Log entries kept in the state. */
   logLimit: number;
@@ -28,12 +28,12 @@ export const DEFAULT_RULES: RulesConfig = {
   minPlayers: 2,
   maxPlayers: 6,
   doublesLimit: 3,
-  quarantineTries: 3,
+  jailTries: 3,
   salaryOnLanding: true,
   logLimit: 120,
 };
 
-export const MAX_LEVEL = 5; // 1-4 domes, 5 = spire
+export const MAX_LEVEL = 5; // 1-4 houses, 5 = hotel
 
 export interface PlayerSetup {
   name: string;
@@ -44,9 +44,9 @@ export interface PlayerSetup {
 export interface Player extends PlayerSetup {
   cash: number;
   pos: number;
-  inQuarantine: boolean;
+  inJail: boolean;
   tries: number;
-  /** Clearance pass card ids held. */
+  /** Jail pass card ids held. */
   passes: string[];
   bankrupt: boolean;
 }
@@ -93,7 +93,7 @@ export type Phase =
   | { kind: 'end' }
   | { kind: 'over'; winner: number };
 
-export type LogKind = 'roll' | 'move' | 'salary' | 'buy' | 'rent' | 'tax' | 'card' | 'quarantine' | 'build' | 'mortgage' | 'auction' | 'trade' | 'debt' | 'bankrupt' | 'win' | 'turn';
+export type LogKind = 'roll' | 'move' | 'salary' | 'buy' | 'rent' | 'tax' | 'card' | 'jail' | 'build' | 'mortgage' | 'auction' | 'trade' | 'debt' | 'bankrupt' | 'win' | 'turn';
 
 export interface LogEntry {
   seq: number;
@@ -106,10 +106,10 @@ export interface GameState {
   players: Player[];
   /** Owner of each space, by position (null = bank). */
   owner: (number | null)[];
-  /** Building level of each lot: 0, 1-4 domes, 5 = spire. */
+  /** Building level of each lot: 0, 1-4 houses, 5 = hotel. */
   level: number[];
   mortgaged: boolean[];
-  bank: { domes: number; spires: number };
+  bank: { houses: number; hotels: number };
   decks: Record<DeckId, string[]>;
   rng: number;
   current: number;
@@ -184,12 +184,12 @@ function shuffle<T>(s: GameState, list: T[]): T[] {
 export function newGame(setup: PlayerSetup[], seed: number, rules: RulesConfig = DEFAULT_RULES): GameState {
   if (setup.length < rules.minPlayers || setup.length > rules.maxPlayers) throw new Error(`need ${rules.minPlayers}-${rules.maxPlayers} players`);
   const s: GameState = {
-    players: setup.map((p) => ({ ...p, cash: rules.economy.startingCash, pos: 0, inQuarantine: false, tries: 0, passes: [], bankrupt: false })),
+    players: setup.map((p) => ({ ...p, cash: rules.economy.startingCash, pos: 0, inJail: false, tries: 0, passes: [], bankrupt: false })),
     owner: new Array(BOARD_SIZE).fill(null),
     level: new Array(BOARD_SIZE).fill(0),
     mortgaged: new Array(BOARD_SIZE).fill(false),
-    bank: { domes: rules.economy.domes, spires: rules.economy.spires },
-    decks: { signal: [], salvage: [] },
+    bank: { houses: rules.economy.houses, hotels: rules.economy.hotels },
+    decks: { news: [], civic: [] },
     rng: seed >>> 0,
     current: 0,
     doubles: 0,
@@ -205,8 +205,8 @@ export function newGame(setup: PlayerSetup[], seed: number, rules: RulesConfig =
     seq: 0,
     memo: {},
   };
-  s.decks.signal = shuffle(s, DECKS.signal.map((c) => c.id));
-  s.decks.salvage = shuffle(s, DECKS.salvage.map((c) => c.id));
+  s.decks.news = shuffle(s, DECKS.news.map((c) => c.id));
+  s.decks.civic = shuffle(s, DECKS.civic.map((c) => c.id));
   log(s, rules, 'turn', `${s.players[0]?.name ?? 'Player 1'} goes first.`, 0);
   return s;
 }
@@ -219,7 +219,7 @@ const P = (s: GameState, i: number): Player => {
   return p;
 };
 
-export const money = (n: number): string => `✦${n.toLocaleString('en-US')}`;
+export const money = (n: number): string => `$${n.toLocaleString('en-US')}`;
 
 function log(s: GameState, rules: RulesConfig, kind: LogKind, text: string, player?: number): void {
   s.seq += 1;
@@ -262,13 +262,13 @@ export function ownsGroup(s: GameState, rules: RulesConfig, p: number, g: number
 /** Refund for selling one building level, rounded down per level so every way of selling pays the same. */
 const refundPerLevel = (rules: RulesConfig, cost: number): number => Math.floor(cost * rules.economy.buildingRefund);
 
-const domesAt = (lvl: number): number => (lvl >= 1 && lvl <= 4 ? lvl : 0);
-const spiresAt = (lvl: number): number => (lvl === MAX_LEVEL ? 1 : 0);
+const housesAt = (lvl: number): number => (lvl >= 1 && lvl <= 4 ? lvl : 0);
+const hotelsAt = (lvl: number): number => (lvl === MAX_LEVEL ? 1 : 0);
 
 export const groupHasBuildings = (s: GameState, rules: RulesConfig, g: number): boolean =>
   (rules.board.groups[g]?.lots ?? []).some((pos) => (s.level[pos] ?? 0) > 0);
 
-/** Rent owed for landing on pos. `dice` is the roll total; `cardBoost` doubles gate tolls / forces 10x works. */
+/** Rent owed for landing on pos. `dice` is the roll total; `cardBoost` doubles subway tolls / forces 10x utilities. */
 export function rentFor(s: GameState, rules: RulesConfig, pos: number, dice: number, cardBoost = false): number {
   const sp = rules.board.spaces[pos];
   const o = s.owner[pos];
@@ -279,13 +279,13 @@ export function rentFor(s: GameState, rules: RulesConfig, pos: number, dice: num
     if (lvl > 0) return sp.terms.rent[lvl] ?? 0;
     return sp.terms.rent[0] * (ownsGroup(s, rules, o, sp.group) ? e.fullGroupMultiplier : 1);
   }
-  if (sp.kind === 'gate') {
-    const n = rules.board.gates.filter((g) => s.owner[g] === o).length;
-    return gateRent(e, n) * (cardBoost ? 2 : 1);
+  if (sp.kind === 'subway') {
+    const n = rules.board.subways.filter((g) => s.owner[g] === o).length;
+    return subwayRent(e, n) * (cardBoost ? 2 : 1);
   }
-  if (sp.kind === 'works') {
-    const n = rules.board.works.filter((w) => s.owner[w] === o).length;
-    return cardBoost ? dice * e.worksMultiplierBoth : worksRent(e, n, dice);
+  if (sp.kind === 'utility') {
+    const n = rules.board.utilities.filter((w) => s.owner[w] === o).length;
+    return cardBoost ? dice * e.utilityMultiplierBoth : utilityRent(e, n, dice);
   }
   return 0;
 }
@@ -334,26 +334,26 @@ function charge(s: GameState, rules: RulesConfig, p: number, creditor: Creditor,
 
 // ---------- movement ----------
 
-function passLaunch(s: GameState, rules: RulesConfig, p: number): void {
+function passStart(s: GameState, rules: RulesConfig, p: number): void {
   const pl = P(s, p);
   pl.cash += rules.economy.salary;
-  log(s, rules, 'salary', `${pl.name} passes Launch and collects ${money(rules.economy.salary)}.`, p);
+  log(s, rules, 'salary', `${pl.name} passes Start and collects ${money(rules.economy.salary)}.`, p);
 }
 
-function sendToQuarantine(s: GameState, rules: RulesConfig, p: number, why: string): void {
+function sendToJail(s: GameState, rules: RulesConfig, p: number, why: string): void {
   const pl = P(s, p);
-  pl.pos = QUARANTINE;
-  pl.inQuarantine = true;
+  pl.pos = JAIL;
+  pl.inJail = true;
   pl.tries = 0;
   if (p === s.current) s.doubles = 0;
-  log(s, rules, 'quarantine', `${pl.name} ${why} and goes to Quarantine.`, p);
+  log(s, rules, 'jail', `${pl.name} ${why} and goes to Jail.`, p);
 }
 
-/** Move forward `steps`, paying salary on passing (or landing on) Launch. */
+/** Move forward `steps`, paying salary on passing (or landing on) Start. */
 function moveBy(s: GameState, rules: RulesConfig, p: number, steps: number, alwaysPay = false): void {
   const pl = P(s, p);
   const raw = pl.pos + steps;
-  if (raw >= BOARD_SIZE && (alwaysPay || rules.salaryOnLanding || raw % BOARD_SIZE !== 0)) passLaunch(s, rules, p);
+  if (raw >= BOARD_SIZE && (alwaysPay || rules.salaryOnLanding || raw % BOARD_SIZE !== 0)) passStart(s, rules, p);
   pl.pos = raw % BOARD_SIZE;
   log(s, rules, 'move', `${pl.name} moves to ${spaceName(rules, pl.pos)}.`, p);
 }
@@ -361,20 +361,20 @@ function moveBy(s: GameState, rules: RulesConfig, p: number, steps: number, alwa
 function advanceTo(s: GameState, rules: RulesConfig, p: number, to: number): void {
   const pl = P(s, p);
   const steps = (to - pl.pos + BOARD_SIZE) % BOARD_SIZE || BOARD_SIZE;
-  // Cards that send you to Launch promise the stipend, whatever the landing rule.
+  // Cards that send you to Start promise the salary, whatever the landing rule.
   moveBy(s, rules, p, steps, to === 0);
 }
 
 /**
- * Resolve landing on the player's current space. `dice` is the roll total (used by works); `cardBoost` is set when
- * a card sent them to the nearest gate or works. Returns true when a purchase decision is now pending.
+ * Resolve landing on the player's current space. `dice` is the roll total (used by utilities); `cardBoost` is set when
+ * a card sent them to the nearest subway or utilities. Returns true when a purchase decision is now pending.
  */
 function land(s: GameState, rules: RulesConfig, p: number, dice: number, then: After, cardBoost = false): boolean {
   const pl = P(s, p);
   const sp = rules.board.spaces[pl.pos];
   if (!sp) return false;
   if (sp.kind === 'corner') {
-    if (sp.corner === 'beam') sendToQuarantine(s, rules, p, 'is caught by the Tractor Beam');
+    if (sp.corner === 'arrest') sendToJail(s, rules, p, 'is arrested');
     return false;
   }
   if (sp.kind === 'levy') {
@@ -398,12 +398,12 @@ function land(s: GameState, rules: RulesConfig, p: number, dice: number, then: A
     return false;
   }
   let roll = dice;
-  if (cardBoost && sp.kind === 'works') {
+  if (cardBoost && sp.kind === 'utility') {
     const a = die(s);
     const b = die(s);
     roll = a + b;
     s.lastRoll = [a, b];
-    log(s, rules, 'roll', `${pl.name} rolls ${a} + ${b} for the works fee.`, p);
+    log(s, rules, 'roll', `${pl.name} rolls ${a} + ${b} for the utility bill.`, p);
   }
   const rent = rentFor(s, rules, pl.pos, roll, cardBoost);
   log(s, rules, 'rent', `${pl.name} owes ${P(s, o).name} ${money(rent)} for ${sp.name}.`, p);
@@ -427,7 +427,7 @@ function drawCard(s: GameState, rules: RulesConfig, p: number, deck: DeckId, the
       land(s, rules, p, s.lastRoll ? s.lastRoll[0] + s.lastRoll[1] : 7, then);
       break;
     case 'nearest': {
-      const targets = e.kind === 'gate' ? rules.board.gates : rules.board.works;
+      const targets = e.kind === 'subway' ? rules.board.subways : rules.board.utilities;
       const to = targets.find((t) => t > pl.pos) ?? targets[0] ?? 0;
       advanceTo(s, rules, p, to);
       land(s, rules, p, 0, then, true);
@@ -450,18 +450,18 @@ function drawCard(s: GameState, rules: RulesConfig, p: number, deck: DeckId, the
       s.owner.forEach((o, pos) => {
         if (o !== p) return;
         const lvl = s.level[pos] ?? 0;
-        total += domesAt(lvl) * e.perDome + spiresAt(lvl) * e.perSpire;
+        total += housesAt(lvl) * e.perHouse + hotelsAt(lvl) * e.perHotel;
       });
       if (total > 0) charge(s, rules, p, 'bank', total, card.title);
       else log(s, rules, 'card', `${pl.name} has no buildings to repair.`, p);
       break;
     }
-    case 'toQuarantine':
-      sendToQuarantine(s, rules, p, 'is flagged');
+    case 'toJail':
+      sendToJail(s, rules, p, 'draws an arrest card');
       break;
     case 'back': {
       pl.pos = (pl.pos - e.steps + BOARD_SIZE) % BOARD_SIZE;
-      log(s, rules, 'move', `${pl.name} drifts back to ${spaceName(rules, pl.pos)}.`, p);
+      log(s, rules, 'move', `${pl.name} backs up to ${spaceName(rules, pl.pos)}.`, p);
       land(s, rules, p, s.lastRoll ? s.lastRoll[0] + s.lastRoll[1] : 7, then);
       break;
     }
@@ -472,7 +472,7 @@ function drawCard(s: GameState, rules: RulesConfig, p: number, deck: DeckId, the
 
 /** Where the turn goes after a move resolves. */
 function afterMove(s: GameState, p: number, rolledDoubles: boolean): After {
-  return rolledDoubles && !P(s, p).inQuarantine ? 'roll' : 'end';
+  return rolledDoubles && !P(s, p).inJail ? 'roll' : 'end';
 }
 
 function settle(s: GameState, then: After): void {
@@ -501,25 +501,25 @@ function doRoll(s: GameState, rules: RulesConfig, p: number): void {
   const dbl = a === b;
   log(s, rules, 'roll', `${pl.name} rolls ${a} + ${b}${dbl ? ' (doubles)' : ''}.`, p);
 
-  if (pl.inQuarantine) {
+  if (pl.inJail) {
     if (dbl) {
-      pl.inQuarantine = false;
+      pl.inJail = false;
       pl.tries = 0;
-      log(s, rules, 'quarantine', `${pl.name} rolls doubles and leaves Quarantine.`, p);
+      log(s, rules, 'jail', `${pl.name} rolls doubles and gets out of Jail.`, p);
       moveBy(s, rules, p, a + b);
       if (!land(s, rules, p, a + b, 'end')) settle(s, 'end');
       return;
     }
     pl.tries += 1;
-    if (pl.tries < rules.quarantineTries) {
-      log(s, rules, 'quarantine', `${pl.name} stays in Quarantine (attempt ${pl.tries} of ${rules.quarantineTries}).`, p);
+    if (pl.tries < rules.jailTries) {
+      log(s, rules, 'jail', `${pl.name} stays in Jail (attempt ${pl.tries} of ${rules.jailTries}).`, p);
       s.phase = { kind: 'end' };
       return;
     }
-    pl.inQuarantine = false;
+    pl.inJail = false;
     pl.tries = 0;
-    log(s, rules, 'quarantine', `${pl.name} has used every attempt, pays ${money(rules.economy.quarantineFee)} and leaves.`, p);
-    charge(s, rules, p, 'bank', rules.economy.quarantineFee, 'Quarantine fee');
+    log(s, rules, 'jail', `${pl.name} has used every attempt, pays ${money(rules.economy.jailFine)} and gets out.`, p);
+    charge(s, rules, p, 'bank', rules.economy.jailFine, 'jail fine');
     moveBy(s, rules, p, a + b);
     if (!land(s, rules, p, a + b, 'end')) settle(s, 'end');
     return;
@@ -528,7 +528,7 @@ function doRoll(s: GameState, rules: RulesConfig, p: number): void {
   if (dbl) {
     s.doubles += 1;
     if (s.doubles >= rules.doublesLimit) {
-      sendToQuarantine(s, rules, p, `rolls doubles ${rules.doublesLimit} times in a row`);
+      sendToJail(s, rules, p, `rolls doubles ${rules.doublesLimit} times in a row`);
       s.phase = { kind: 'end' };
       return;
     }
@@ -589,15 +589,15 @@ function auctionStep(s: GameState, rules: RulesConfig): void {
 // ---------- building ----------
 
 /** Validate and price a change of building levels across one group. */
-export function planLevels(s: GameState, rules: RulesConfig, p: number, g: number, levels: number[]): { cost: number; refund: number; domes: number; spires: number } | { error: string } {
+export function planLevels(s: GameState, rules: RulesConfig, p: number, g: number, levels: number[]): { cost: number; refund: number; houses: number; hotels: number } | { error: string } {
   const grp = rules.board.groups[g];
   if (!grp) return { error: 'no such group' };
   if (levels.length !== grp.lots.length || levels.some((l) => !Number.isInteger(l) || l < 0 || l > MAX_LEVEL)) return { error: 'bad levels' };
-  if (!ownsGroup(s, rules, p, g)) return { error: `you need every lot in ${grp.name} to build` };
+  if (!ownsGroup(s, rules, p, g)) return { error: `you need every property in ${grp.name} to build` };
   const before = grp.lots.map((pos) => s.level[pos] ?? 0);
   if (before.every((b, i) => b === levels[i])) return { error: 'nothing to change' };
-  if (levels.some((l) => l > 0) && grp.lots.some((pos) => s.mortgaged[pos])) return { error: 'lift every mortgage in the group first' };
-  if (Math.max(...levels) - Math.min(...levels) > 1) return { error: 'build and sell evenly: lots in a group may differ by one level at most' };
+  if (levels.some((l) => l > 0) && grp.lots.some((pos) => s.mortgaged[pos])) return { error: 'pay off every mortgage in the set first' };
+  if (Math.max(...levels) - Math.min(...levels) > 1) return { error: 'build and sell evenly: properties in a set may differ by one building at most' };
   const first = rules.board.spaces[grp.lots[0] ?? 0];
   const unit = first?.kind === 'lot' ? first.terms.buildCost : 0;
   let up = 0;
@@ -608,21 +608,21 @@ export function planLevels(s: GameState, rules: RulesConfig, p: number, g: numbe
     const a = levels[i] ?? 0;
     if (a > b) {
       up += a - b;
-      peakNeed += (a === MAX_LEVEL ? 4 : a) - domesAt(b);
+      peakNeed += (a === MAX_LEVEL ? 4 : a) - housesAt(b);
     } else if (a < b) {
       down += b - a;
-      if (b === MAX_LEVEL) peakNeed += domesAt(a);
+      if (b === MAX_LEVEL) peakNeed += housesAt(a);
       else returned += b - a;
     }
   });
-  const domes = levels.reduce((t, l) => t + domesAt(l), 0) - before.reduce((t, l) => t + domesAt(l), 0);
-  const spires = levels.reduce((t, l) => t + spiresAt(l), 0) - before.reduce((t, l) => t + spiresAt(l), 0);
-  if (s.bank.domes + returned < peakNeed) return { error: `the bank has only ${s.bank.domes} domes left` };
-  if (spires > s.bank.spires) return { error: `the bank has only ${s.bank.spires} spires left` };
+  const houses = levels.reduce((t, l) => t + housesAt(l), 0) - before.reduce((t, l) => t + housesAt(l), 0);
+  const hotels = levels.reduce((t, l) => t + hotelsAt(l), 0) - before.reduce((t, l) => t + hotelsAt(l), 0);
+  if (s.bank.houses + returned < peakNeed) return { error: `the bank has only ${s.bank.houses} houses left` };
+  if (hotels > s.bank.hotels) return { error: `the bank has only ${s.bank.hotels} hotels left` };
   const cost = up * unit;
   const refund = down * refundPerLevel(rules, unit);
   if (cost - refund > P(s, p).cash) return { error: `that costs ${money(cost - refund)}` };
-  return { cost, refund, domes, spires };
+  return { cost, refund, houses, hotels };
 }
 
 function setLevels(s: GameState, rules: RulesConfig, p: number, g: number, levels: number[]): string | null {
@@ -630,8 +630,8 @@ function setLevels(s: GameState, rules: RulesConfig, p: number, g: number, level
   if ('error' in plan) return plan.error;
   const grp = rules.board.groups[g]!;
   grp.lots.forEach((pos, i) => (s.level[pos] = levels[i] ?? 0));
-  s.bank.domes -= plan.domes;
-  s.bank.spires -= plan.spires;
+  s.bank.houses -= plan.houses;
+  s.bank.hotels -= plan.hotels;
   P(s, p).cash += plan.refund - plan.cost;
   const pl = P(s, p);
   if (plan.cost) log(s, rules, 'build', `${pl.name} builds on ${grp.name} for ${money(plan.cost)}.`, p);
@@ -641,7 +641,7 @@ function setLevels(s: GameState, rules: RulesConfig, p: number, g: number, level
 
 function stepLevel(s: GameState, rules: RulesConfig, p: number, pos: number, delta: 1 | -1): string | null {
   const g = groupOf(rules, pos);
-  if (g === null) return 'only lots take buildings';
+  if (g === null) return 'only streets take buildings';
   const grp = rules.board.groups[g]!;
   const levels = grp.lots.map((q) => (s.level[q] ?? 0) + (q === pos ? delta : 0));
   return setLevels(s, rules, p, g, levels);
@@ -659,8 +659,8 @@ function goBankrupt(s: GameState, rules: RulesConfig, p: number, creditor: Credi
     const lvl = s.level[pos] ?? 0;
     if (sp?.kind === 'lot' && lvl > 0) {
       pl.cash += lvl * refundPerLevel(rules, sp.terms.buildCost);
-      s.bank.domes += domesAt(lvl);
-      s.bank.spires += spiresAt(lvl);
+      s.bank.houses += housesAt(lvl);
+      s.bank.hotels += hotelsAt(lvl);
       s.level[pos] = 0;
     }
   });
@@ -673,7 +673,7 @@ function goBankrupt(s: GameState, rules: RulesConfig, p: number, creditor: Credi
       s.mortgaged[pos] = false;
     }
     s.auctionQueue.push(...lots);
-    log(s, rules, 'bankrupt', `${pl.name} is bankrupt. The bank takes everything${lots.length ? ' and auctions the lots' : ''}.`, p);
+    log(s, rules, 'bankrupt', `${pl.name} is bankrupt. The bank takes everything${lots.length ? ' and auctions the properties' : ''}.`, p);
   } else {
     const c = P(s, target);
     c.cash += Math.max(0, pl.cash);
@@ -683,7 +683,7 @@ function goBankrupt(s: GameState, rules: RulesConfig, p: number, creditor: Credi
       s.owner[pos] = target;
       if (s.mortgaged[pos]) fees += transferFee(e, Math.round(priceOf(rules.board.spaces[pos]!) * e.mortgageShare));
     }
-    log(s, rules, 'bankrupt', `${pl.name} is bankrupt. ${c.name} takes their cash, lots and passes.`, p);
+    log(s, rules, 'bankrupt', `${pl.name} is bankrupt. ${c.name} takes their cash, properties and passes.`, p);
     if (fees) charge(s, rules, target, 'bank', fees, 'interest on mortgaged lots received');
   }
   pl.cash = 0;
@@ -705,7 +705,7 @@ function goBankrupt(s: GameState, rules: RulesConfig, p: number, creditor: Credi
     s.auction = null;
     s.auctionQueue = [];
     s.debts = [];
-    log(s, rules, 'win', `${P(s, w).name} is the last one standing and wins Bankroll!`, w);
+    log(s, rules, 'win', `${P(s, w).name} is the last one standing and wins!`, w);
     return;
   }
   if (p === s.current) {
@@ -733,7 +733,7 @@ function validBundle(s: GameState, rules: RulesConfig, who: number, b: Bundle): 
   for (const pos of b.lots) {
     if (s.owner[pos] !== who) return `${pl.name} does not own ${spaceName(rules, pos)}`;
     const g = groupOf(rules, pos);
-    if (g !== null && groupHasBuildings(s, rules, g)) return `sell the buildings in ${rules.board.groups[g]?.name} before trading its lots`;
+    if (g !== null && groupHasBuildings(s, rules, g)) return `sell the buildings in ${rules.board.groups[g]?.name} before trading its properties`;
   }
   return null;
 }
@@ -762,7 +762,7 @@ function moveBundle(s: GameState, rules: RulesConfig, from: number, to: number, 
 export const describeBundle = (rules: RulesConfig, b: Bundle): string => {
   const parts = [...b.lots.map((pos) => spaceName(rules, pos))];
   if (b.cash) parts.push(money(b.cash));
-  if (b.passes) parts.push(`${b.passes} clearance pass${b.passes > 1 ? 'es' : ''}`);
+  if (b.passes) parts.push(`${b.passes} jail pass${b.passes > 1 ? 'es' : ''}`);
   return parts.length ? parts.join(', ') : 'nothing';
 };
 
@@ -785,22 +785,22 @@ export function apply(state: GameState, player: number, action: Action, rules: R
       break;
     }
     case 'payFine': {
-      if (s.debts.length || s.trade || s.phase.kind !== 'roll' || !pl.inQuarantine) return err('not now');
-      if (pl.cash < rules.economy.quarantineFee) return err(`the fee is ${money(rules.economy.quarantineFee)}`);
-      pl.cash -= rules.economy.quarantineFee;
-      pl.inQuarantine = false;
+      if (s.debts.length || s.trade || s.phase.kind !== 'roll' || !pl.inJail) return err('not now');
+      if (pl.cash < rules.economy.jailFine) return err(`the fee is ${money(rules.economy.jailFine)}`);
+      pl.cash -= rules.economy.jailFine;
+      pl.inJail = false;
       pl.tries = 0;
-      log(s, rules, 'quarantine', `${pl.name} pays ${money(rules.economy.quarantineFee)} and leaves Quarantine.`, player);
+      log(s, rules, 'jail', `${pl.name} pays ${money(rules.economy.jailFine)} and gets out of Jail.`, player);
       break;
     }
     case 'usePass': {
-      if (s.debts.length || s.trade || s.phase.kind !== 'roll' || !pl.inQuarantine) return err('not now');
+      if (s.debts.length || s.trade || s.phase.kind !== 'roll' || !pl.inJail) return err('not now');
       const id = pl.passes.shift();
-      if (!id) return err('no clearance pass');
+      if (!id) return err('no jail pass');
       s.decks[cardById(id).deck].push(id);
-      pl.inQuarantine = false;
+      pl.inJail = false;
       pl.tries = 0;
-      log(s, rules, 'quarantine', `${pl.name} uses a clearance pass and leaves Quarantine.`, player);
+      log(s, rules, 'jail', `${pl.name} uses a jail pass and gets out of Jail.`, player);
       break;
     }
     case 'buy': {
@@ -865,7 +865,7 @@ export function apply(state: GameState, player: number, action: Action, rules: R
       if (!sp || !isOwnable(sp) || s.owner[action.pos] !== player) return err('not yours');
       if (s.mortgaged[action.pos]) return err('already mortgaged');
       const g = groupOf(rules, action.pos);
-      if (g !== null && groupHasBuildings(s, rules, g)) return err('sell the buildings in this group first');
+      if (g !== null && groupHasBuildings(s, rules, g)) return err('sell the buildings in this set first');
       const m = Math.round(priceOf(sp) * rules.economy.mortgageShare);
       s.mortgaged[action.pos] = true;
       pl.cash += m;
@@ -879,10 +879,10 @@ export function apply(state: GameState, player: number, action: Action, rules: R
       if (!sp || !isOwnable(sp) || s.owner[action.pos] !== player) return err('not yours');
       if (!s.mortgaged[action.pos]) return err('not mortgaged');
       const cost = unmortgageCost(rules.economy, Math.round(priceOf(sp) * rules.economy.mortgageShare));
-      if (pl.cash < cost) return err(`lifting it costs ${money(cost)}`);
+      if (pl.cash < cost) return err(`paying it off costs ${money(cost)}`);
       pl.cash -= cost;
       s.mortgaged[action.pos] = false;
-      log(s, rules, 'mortgage', `${pl.name} lifts the mortgage on ${sp.name} for ${money(cost)}.`, player);
+      log(s, rules, 'mortgage', `${pl.name} pays off the mortgage on ${sp.name} for ${money(cost)}.`, player);
       break;
     }
     case 'propose': {
@@ -927,7 +927,7 @@ export function apply(state: GameState, player: number, action: Action, rules: R
     case 'bankrupt': {
       const d = s.debts[0];
       if (!d) return err('you can only go bankrupt when you owe more than you can pay');
-      if (liquidationValue(s, rules, player) >= d.amount) return err('you can still raise enough: sell buildings or mortgage lots');
+      if (liquidationValue(s, rules, player) >= d.amount) return err('you can still raise enough: sell buildings or mortgage properties');
       goBankrupt(s, rules, player, d.creditor);
       break;
     }

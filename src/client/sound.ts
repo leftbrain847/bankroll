@@ -1,5 +1,5 @@
 /** Bankroll's sounds, synthesised live with Web Audio: no audio files. */
-export type Cue = 'roll' | 'step' | 'coin' | 'pay' | 'buy' | 'card' | 'quarantine' | 'build' | 'bid' | 'win' | 'bankrupt' | 'tap';
+export type Cue = 'roll' | 'step' | 'coin' | 'pay' | 'buy' | 'card' | 'jail' | 'build' | 'bid' | 'win' | 'bankrupt' | 'tap';
 
 let ctx: AudioContext | null = null;
 let muted = false;
@@ -62,7 +62,7 @@ export function play(cue: Cue): void {
     case 'card':
       tone(300, 0, 0.25, 'sine', 0.08, 900);
       break;
-    case 'quarantine':
+    case 'jail':
       tone(392, 0, 0.18, 'sawtooth', 0.05, 196);
       tone(262, 0.16, 0.3, 'sine', 0.08, 131);
       break;
