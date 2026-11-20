@@ -182,9 +182,7 @@ function spaceFacts(s: GameState, pos: number): HTMLElement {
   const e = RULES.economy;
   if (sp.kind === 'lot') {
     const t = sp.terms;
-    rows.push(['Price', money(t.price)], ['Rent', money(t.rent[0])], ['Rent with the whole set', money(t.rent[0] * e.fullGroupMultiplier)]);
-    [1, 2, 3, 4].forEach((n) => rows.push([`With ${n} house${n > 1 ? 's' : ''}`, money(t.rent[n]!)]));
-    rows.push(['With a hotel', money(t.rent[5])], ['Each house or hotel costs', money(t.buildCost)], ['Mortgage', money(t.mortgage)]);
+    rows.push(['Price', money(t.price)], ['Bare rent, whole set owned', money(t.rent[0] * e.fullGroupMultiplier)], ['Building cost', `${money(t.buildCost)} each`], ['Mortgage value', money(t.mortgage)]);
   } else if (sp.kind === 'subway') {
     rows.push(['Price', money(sp.price)], ...[1, 2, 3, 4].map((n) => [`Owner has ${n} line${n > 1 ? 's' : ''}`, money(e.subwayRent * 2 ** (n - 1))] as [string, string]), ['Mortgage', money(Math.round(sp.price * e.mortgageShare))]);
   } else if (sp.kind === 'utility') {
@@ -192,9 +190,9 @@ function spaceFacts(s: GameState, pos: number): HTMLElement {
   } else if (sp.kind === 'levy') rows.push(['Pay', money(sp.amount)]);
   else if (sp.kind === 'draw') rows.push(['Effect', `Draw a ${DECK_NAMES[sp.deck]} card`]);
   else if (sp.corner === 'start') rows.push(['Salary', `${money(e.salary)} each time you pass or land here`]);
-  else if (sp.corner === 'jail') rows.push(['Just passing', 'Nothing happens'], ['Getting out', `${money(e.jailFine)}, a jail pass, or doubles`]);
+  else if (sp.corner === 'jail') rows.push(['Landing here by a roll', 'No effect'], ['Getting out', `${money(e.jailFine)}, a jail pass, or doubles`]);
   else if (sp.corner === 'rest') rows.push(['Effect', 'Nothing happens. Take a breather']);
-  else rows.push(['Effect', 'Go straight to Jail']);
+  else rows.push(['Effect', 'You are arrested: move to Jail, turn ends']);
   const o = s.owner[pos];
   if (isOwnable(sp)) {
     rows.push(['Owner', o === null || o === undefined ? 'For sale' : `${s.players[o]!.name}${s.mortgaged[pos] ? ' (mortgaged)' : ''}`]);
@@ -261,16 +259,26 @@ function close(): void {
 function spaceSheet(s: GameState, pos: number): HTMLElement {
   const sp = BOARD.spaces[pos]!;
   const grp = sp.kind === 'lot' ? BOARD.groups[sp.group] : null;
-  const dark = !grp || grp.color === '#2b2d3a';
-  const deed = el('div', { className: 'deed' }, [
-    el('div', { className: 'deed-band', style: { background: grp?.color ?? '#efe3c4', color: dark && grp ? '#fff' : '#2b2118' } }, [
-      el('small', { text: spaceKindLabel(pos).toUpperCase() }),
-      el('strong', { text: sp.name }),
-    ]),
-    spaceFacts(s, pos),
+  const head = el('div', { className: 'prop-head' }, [
+    el('span', { className: 'swatch', text: grp?.mark ?? '', style: { background: grp?.color ?? 'var(--line)', color: 'var(--ink)' } }),
+    el('div', {}, [el('strong', { text: sp.name }), el('span', { className: 'muted', text: spaceKindLabel(pos) })]),
   ]);
+  // Rents as a grid of tiles: bare, whole set, 1-4 houses, hotel. The current level is highlighted.
+  let grid: HTMLElement | null = null;
+  if (sp.kind === 'lot') {
+    const t = sp.terms;
+    const lvl = s.level[pos] ?? 0;
+    const tiles: [string, number, boolean][] = [
+      ['Bare', t.rent[0], lvl === 0],
+      ...[1, 2, 3, 4].map((n) => [`${n} house${n > 1 ? 's' : ''}`, t.rent[n]!, lvl === n] as [string, number, boolean]),
+      ['Hotel', t.rent[5], lvl === 5],
+    ];
+    grid = el('div', { className: 'rent-grid', attrs: { 'aria-label': 'Rent by buildings' } }, tiles.map(([label, v, on]) =>
+      el('div', { className: `rent-tile${on && s.owner[pos] !== null ? ' on' : ''}` }, [el('span', { text: label }), el('strong', { text: money(v) })])));
+  }
+  const card = el('div', { className: 'prop' }, [head, grid, spaceFacts(s, pos)].filter(Boolean) as Node[]);
   const controls = claimControls(s, pos);
-  return sheetFrame('Property card', [deed, controls, ui.error ? el('p', { className: 'error', text: ui.error }) : null].filter(Boolean) as Node[]);
+  return sheetFrame('Details', [card, controls, ui.error ? el('p', { className: 'error', text: ui.error }) : null].filter(Boolean) as Node[]);
 }
 
 function holdingsSheet(s: GameState, p: number): HTMLElement {
@@ -281,7 +289,7 @@ function holdingsSheet(s: GameState, p: number): HTMLElement {
     const grp = sp.kind === 'lot' ? BOARD.groups[sp.group]! : null;
     return el('li', { className: 'holding' }, [
       el('div', { className: 'holding-name' }, [
-        el('span', { className: 'swatch sm', text: grp?.mark ?? (sp.kind === 'subway' ? '◇' : '⬡'), style: { background: grp?.color ?? '#252c5c', color: grp && grp.color !== '#2b2d3a' ? '#0b1020' : '#fff' } }),
+        el('span', { className: 'swatch sm', text: grp?.mark ?? (sp.kind === 'subway' ? '◇' : '⬡'), style: { background: grp?.color ?? 'var(--line)', color: 'var(--ink)' } }),
         el('button', { className: 'link', text: sp.name, onClick: () => ((ui.sheet = { kind: 'space', pos }), (ui.selected = pos), draw()) }),
         el('span', { className: 'muted', text: `${s.mortgaged[pos] ? 'mortgaged ' : ''}${levelText(s.level[pos] ?? 0)}` }),
       ]),
@@ -315,7 +323,7 @@ function tradeSheet(s: GameState, t: Extract<Sheet, { kind: 'trade' }>): HTMLEle
       const grp = sp.kind === 'lot' ? BOARD.groups[sp.group] : null;
       return el('li', {}, [
         el('button', { className: `pick${set.has(pos) ? ' on' : ''}`, onClick: () => pick(set, pos), attrs: { 'aria-pressed': String(set.has(pos)), type: 'button' } }, [
-          el('span', { className: 'swatch sm', text: grp?.mark ?? (sp.kind === 'subway' ? '◇' : '⬡'), style: { background: grp?.color ?? '#252c5c', color: grp && grp.color !== '#2b2d3a' ? '#0b1020' : '#fff' } }),
+          el('span', { className: 'swatch sm', text: grp?.mark ?? (sp.kind === 'subway' ? '◇' : '⬡'), style: { background: grp?.color ?? 'var(--line)', color: 'var(--ink)' } }),
           el('span', { text: `${sp.name}${s.mortgaged[pos] ? ' (m)' : ''}` }),
         ]),
       ]);

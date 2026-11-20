@@ -50,7 +50,7 @@ export const HELP: { title: string; body: string[] }[] = [
   {
     title: 'Jail',
     body: [
-      'You go to Jail by landing on Arrested, by drawing a card that sends you there, or by rolling doubles three times in a turn. Go straight there and collect no salary. Landing on Jail by a normal roll means you are just passing by.',
+      'You go to Jail by landing on Arrested, by drawing a card that sends you there, or by rolling doubles three times in a turn. You move there without collecting your salary, and your turn ends. Landing on Jail with a normal roll has no effect: you are only passing through.',
       `To get out, at the start of your turn pay ${money(E.jailFine)}, use a Jail pass, or try for doubles. Doubles get you out and you move that roll, but you don’t roll again. After your third miss you must pay ${money(E.jailFine)} and move the roll you just made. You still collect rent, build and trade while in Jail.`,
     ],
   },

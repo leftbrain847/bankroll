@@ -1,6 +1,8 @@
 /**
- * The two draw decks, 16 cards each: News and Civic. Card effects use the standard mix of effect types; every
- * title and line of text is Bankroll's own. Amounts are in dollars and sit on the same scale as ECONOMY.
+ * The two draw decks, 16 cards each: News and Civic. Each deck holds the required mix of effect types (move to a
+ * space, move to the nearest subway line or utility, collect, pay, pay or collect from every player, building
+ * repairs, Jail, the Jail-release card, move back three). Titles, situations, destinations and amounts are
+ * Bankroll's own. Amounts are in dollars on the ECONOMY scale.
  */
 import type { DeckId } from './board';
 
@@ -25,41 +27,41 @@ export interface Card {
 }
 
 const news: Omit<Card, 'deck'>[] = [
-  { id: 'n1', title: 'Fresh start', text: 'Head back to Start and collect your salary.', effect: { type: 'advance', to: 0 } },
-  { id: 'n2', title: 'Campus tour', text: 'Take a tour at Belltower Place. Passing Start on the way pays your salary.', effect: { type: 'advance', to: 24 } },
-  { id: 'n3', title: 'Gallery opening', text: 'Stop by Gallery Walk. Passing Start on the way pays your salary.', effect: { type: 'advance', to: 11 } },
-  { id: 'n4', title: 'Blackout', text: 'Go to the nearest utility. If someone owns it, roll the dice and pay them ten times the roll.', effect: { type: 'nearest', kind: 'utility' } },
-  { id: 'n5', title: 'Rush hour', text: 'Go to the nearest subway line. If someone owns it, pay them twice the usual rent.', effect: { type: 'nearest', kind: 'subway' } },
-  { id: 'n6', title: 'Express train', text: 'Go to the nearest subway line. If someone owns it, pay them twice the usual rent.', effect: { type: 'nearest', kind: 'subway' } },
-  { id: 'n7', title: 'Stock tip pays off', text: 'Collect $60.', effect: { type: 'collect', amount: 60 } },
-  { id: 'n8', title: 'Jail pass', text: 'Use this to walk out of Jail for free whenever you need to. You can also sell or trade it.', effect: { type: 'pass' } },
-  { id: 'n9', title: 'Wrong turn', text: 'Back up three spaces.', effect: { type: 'back', steps: 3 } },
-  { id: 'n10', title: 'Arrested', text: 'Straight to Jail, with no salary on the way.', effect: { type: 'toJail' } },
-  { id: 'n11', title: 'Building inspection', text: 'Every building you own needs work: $30 a house, $120 a hotel.', effect: { type: 'repairs', perHouse: 30, perHotel: 120 } },
-  { id: 'n12', title: 'Parking ticket', text: 'Pay $20.', effect: { type: 'pay', amount: 20 } },
-  { id: 'n13', title: 'Harbor trip', text: 'Ride out to the Harbor Line. Passing Start on the way pays your salary.', effect: { type: 'advance', to: 5 } },
-  { id: 'n14', title: 'Penthouse viewing', text: 'Head up to Crown Tower.', effect: { type: 'advance', to: 39 } },
-  { id: 'n15', title: 'Round on you', text: 'You buy dinner for the table. Pay every other player $60.', effect: { type: 'payEach', amount: 60 } },
-  { id: 'n16', title: 'Big contract', text: 'A client pays early. Collect $180.', effect: { type: 'collect', amount: 180 } },
+  { id: 'n12', title: 'Patent sold', text: 'A company buys your kitchen-gadget patent. Collect $160.', effect: { type: 'collect', amount: 160 } },
+  { id: 'n7', title: 'Food truck review', text: 'Your taco truck review goes viral. Collect $75.', effect: { type: 'collect', amount: 75 } },
+  { id: 'n5', title: 'Express service', text: 'Ride ahead to the next subway line. If someone owns it, they charge you double rent.', effect: { type: 'nearest', kind: 'subway' } },
+  { id: 'n11', title: 'Fire code update', text: 'New sprinkler rules: $35 for every house you own and $115 for every hotel.', effect: { type: 'repairs', perHouse: 35, perHotel: 115 } },
+  { id: 'n3', title: 'Farmers market', text: 'Spend the morning on Elm Terrace. Move there, and pick up your salary if you pass Start.', effect: { type: 'advance', to: 16 } },
+  { id: 'n10', title: 'Jaywalking sting', text: 'You are arrested. Move to Jail; your turn ends.', effect: { type: 'toJail' } },
+  { id: 'n14', title: 'Library fines', text: 'Those overdue books add up. Pay $35.', effect: { type: 'pay', amount: 35 } },
+  { id: 'n1', title: 'Early paycheck', text: 'Your boss pays a day early. Move to Start and collect your salary.', effect: { type: 'advance', to: 0 } },
+  { id: 'n9', title: 'Road closure', text: 'A detour sends you three spaces backward.', effect: { type: 'back', steps: 3 } },
+  { id: 'n16', title: 'Rooftop party', text: 'You are on the guest list at Summit Heights. Move there.', effect: { type: 'advance', to: 37 } },
+  { id: 'n4', title: 'Heat wave', text: 'Move ahead to the next utility. If someone owns it, roll the dice and pay them ten times the roll.', effect: { type: 'nearest', kind: 'utility' } },
+  { id: 'n15', title: 'Office party', text: 'You cover the cake. Pay each other player $45.', effect: { type: 'payEach', amount: 45 } },
+  { id: 'n8', title: 'Good lawyer', text: 'Keep this card. Play it while in Jail to leave without paying. It can be traded.', effect: { type: 'pass' } },
+  { id: 'n13', title: 'Night shift', text: 'Catch the Uptown Line. Pick up your salary if you pass Start.', effect: { type: 'advance', to: 25 } },
+  { id: 'n6', title: 'Missed your stop', text: 'Ride ahead to the next subway line. If someone owns it, they charge you double rent.', effect: { type: 'nearest', kind: 'subway' } },
+  { id: 'n2', title: 'Guest lecture', text: 'You are speaking on College Street. Move there, and pick up your salary if you pass Start.', effect: { type: 'advance', to: 21 } },
 ];
 
 const civic: Omit<Card, 'deck'>[] = [
-  { id: 'c1', title: 'City payroll', text: 'Payroll comes early. Move to Start and collect your salary.', effect: { type: 'advance', to: 0 } },
-  { id: 'c2', title: 'Tax overpayment', text: 'The city owes you money. Collect $240.', effect: { type: 'collect', amount: 240 } },
-  { id: 'c3', title: 'Dentist', text: 'Pay $60.', effect: { type: 'pay', amount: 60 } },
-  { id: 'c4', title: 'Yard sale', text: 'Collect $60.', effect: { type: 'collect', amount: 60 } },
-  { id: 'c5', title: 'Jail pass', text: 'Use this to walk out of Jail for free whenever you need to. You can also sell or trade it.', effect: { type: 'pass' } },
-  { id: 'c6', title: 'Arrested', text: 'Straight to Jail, with no salary on the way.', effect: { type: 'toJail' } },
-  { id: 'c7', title: 'Block party', text: 'Your neighbors chip in. Collect $120.', effect: { type: 'collect', amount: 120 } },
-  { id: 'c8', title: 'Rebate', text: 'Collect $25.', effect: { type: 'collect', amount: 25 } },
-  { id: 'c9', title: 'Housewarming', text: 'Every other player gives you $12.', effect: { type: 'collectEach', amount: 12 } },
-  { id: 'c10', title: 'Savings bond', text: 'Collect $120.', effect: { type: 'collect', amount: 120 } },
-  { id: 'c11', title: 'Plumber', text: 'A pipe burst. Pay $120.', effect: { type: 'pay', amount: 120 } },
-  { id: 'c12', title: 'Tuition', text: 'Pay $60.', effect: { type: 'pay', amount: 60 } },
-  { id: 'c13', title: 'Side job', text: 'Collect $30.', effect: { type: 'collect', amount: 30 } },
-  { id: 'c14', title: 'Street repairs', text: 'The city bills owners for the potholes: $50 a house, $140 a hotel.', effect: { type: 'repairs', perHouse: 50, perHotel: 140 } },
-  { id: 'c15', title: 'Raffle win', text: 'Collect $12.', effect: { type: 'collect', amount: 12 } },
-  { id: 'c16', title: 'Found money', text: 'Collect $120.', effect: { type: 'collect', amount: 120 } },
+  { id: 'c7', title: 'Jury duty', text: 'Take the Midtown Line to the courthouse. Pick up your salary if you pass Start.', effect: { type: 'advance', to: 15 } },
+  { id: 'c12', title: 'Census work', text: 'You count heads for the city. Collect $110.', effect: { type: 'collect', amount: 110 } },
+  { id: 'c3', title: 'Zoning permit', text: 'Your fence needs a permit. Pay $75.', effect: { type: 'pay', amount: 75 } },
+  { id: 'c9', title: 'Carpool fund', text: 'Everyone owes you gas money. Collect $15 from each other player.', effect: { type: 'collectEach', amount: 15 } },
+  { id: 'c16', title: 'Street fair booth', text: 'Your lemonade stand sells out. Collect $65.', effect: { type: 'collect', amount: 65 } },
+  { id: 'c11', title: 'Old warrant', text: 'A pile of unpaid tickets catches up with you. You are arrested. Move to Jail; your turn ends.', effect: { type: 'toJail' } },
+  { id: 'c1', title: 'Mural grant', text: 'The arts council funds your mural. Collect $90.', effect: { type: 'collect', amount: 90 } },
+  { id: 'c14', title: 'Coupon day', text: 'Collect $20.', effect: { type: 'collect', amount: 20 } },
+  { id: 'c2', title: 'Sidewalk assessment', text: 'The city bills owners for new sidewalks: $45 for every house and $125 for every hotel.', effect: { type: 'repairs', perHouse: 45, perHotel: 125 } },
+  { id: 'c8', title: 'Scratch ticket', text: 'Lucky scratch. Collect $200.', effect: { type: 'collect', amount: 200 } },
+  { id: 'c5', title: 'Lost paperwork', text: 'Keep this card. Play it while in Jail to leave without paying. It can be traded.', effect: { type: 'pass' } },
+  { id: 'c13', title: 'Water bill', text: 'Pay $50.', effect: { type: 'pay', amount: 50 } },
+  { id: 'c10', title: 'Lost and found', text: 'You return a wallet and get a reward. Collect $45.', effect: { type: 'collect', amount: 45 } },
+  { id: 'c4', title: 'Towed', text: 'You parked in a loading zone. Pay $100 to get your car back.', effect: { type: 'pay', amount: 100 } },
+  { id: 'c15', title: 'Small business award', text: 'Collect $140.', effect: { type: 'collect', amount: 140 } },
+  { id: 'c6', title: 'Bottle deposits', text: 'Collect $30.', effect: { type: 'collect', amount: 30 } },
 ];
 
 export const DECKS: Record<DeckId, Card[]> = {

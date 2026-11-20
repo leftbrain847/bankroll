@@ -119,7 +119,7 @@ describe('economy (generated, one config)', () => {
 });
 
 describe('cards', () => {
-  it('has two decks of 16 with the standard mix of effect types', () => {
+  it('has two decks of 16 with the required mix of effect types', () => {
     const mix = (d: keyof typeof DECKS) => DECKS[d].reduce<Record<string, number>>((m, c) => ({ ...m, [c.effect.type]: (m[c.effect.type] ?? 0) + 1 }), {});
     expect(DECKS.news).toHaveLength(16);
     expect(DECKS.civic).toHaveLength(16);
@@ -499,8 +499,8 @@ describe('cards in play', () => {
   };
 
   it('advance cards move you and pay salary when they pass Start', () => {
-    const s = drawOn('news', 'n3', 33, 1, 2); // 36 -> Glowmere (11), passing Start
-    expect(s.players[0]!.pos).toBe(11);
+    const s = drawOn('news', 'n3', 33, 1, 2); // 36 -> Elm Terrace (16), passing Start
+    expect(s.players[0]!.pos).toBe(16);
     expect(s.players[0]!.cash).toBe(E.startingCash + E.salary);
   });
 
@@ -515,19 +515,19 @@ describe('cards in play', () => {
   });
 
   it('nearest subway: pay double the toll', () => {
-    const s = drawOn('news', 'n5', 4, 1, 2, (st) => give(st, 1, 15)); // 7 -> Rift Gate (15)
+    const s = drawOn('news', 'n5', 4, 1, 2, (st) => give(st, 1, 15)); // 7 -> Midtown Line (15)
     expect(s.players[0]!.pos).toBe(15);
     expect(s.players[1]!.cash).toBe(E.startingCash + E.subwayRent * 2);
   });
 
   it('nearest utilities: roll and pay ten times the dice', () => {
-    const s = drawOn('news', 'n4', 34, 1, 1, (st) => give(st, 1, 12)); // 36 -> Sail Works (12), passes Start
+    const s = drawOn('news', 'n4', 34, 1, 1, (st) => give(st, 1, 12)); // 36 -> Power Grid (12), passes Start
     const [a, b] = s.lastRoll!;
     expect(s.players[1]!.cash).toBe(E.startingCash + (a + b) * 10);
   });
 
   it('move back three spaces', () => {
-    const s = drawOn('news', 'n9', 4, 1, 2); // 7 -> 4 (Dock Levy)
+    const s = drawOn('news', 'n9', 4, 1, 2); // 7 -> 4 (Tax Bill)
     expect(s.players[0]!.pos).toBe(4);
     expect(s.players[0]!.cash).toBe(E.startingCash - E.taxHigh);
   });
@@ -538,15 +538,15 @@ describe('cards in play', () => {
       st.level[37] = 4;
       st.level[39] = 5;
     });
-    expect(s.players[0]!.cash).toBe(E.startingCash - 4 * 30 - 120);
+    expect(s.players[0]!.cash).toBe(E.startingCash - 4 * 35 - 115);
   });
 
   it('pay each player and collect from each player', () => {
     let s = drawOn('news', 'n15', 4, 1, 2);
-    expect(s.players[0]!.cash).toBe(E.startingCash - 120);
-    expect(s.players[2]!.cash).toBe(E.startingCash + 60);
+    expect(s.players[0]!.cash).toBe(E.startingCash - 90);
+    expect(s.players[2]!.cash).toBe(E.startingCash + 45);
     s = drawOn('civic', 'c9', 0, 1, 1);
-    expect(s.players[0]!.cash).toBe(E.startingCash + 24);
+    expect(s.players[0]!.cash).toBe(E.startingCash + 30);
   });
 
   it('go to Jail, and the jail pass is kept out of the deck', () => {

@@ -149,10 +149,15 @@ button.link { background: none; border: 0; box-shadow: none; padding: 0; min-hei
   .top h1 { font-size: 1.1rem; }
 }
 
-/* Claim card (deed-style sheet header) */
-.deed { border: 2px solid var(--ink); border-radius: 8px; overflow: hidden; background: #fffaf0; margin: 8px 0; }
-.deed-band { padding: 10px 12px; text-align: center; border-bottom: 2px solid var(--ink); }
-.deed-band small { display: block; letter-spacing: 0.18em; font-size: 0.65rem; font-weight: 700; }
-.deed-band strong { font-family: var(--display); font-size: 1.25rem; letter-spacing: 0.04em; text-transform: uppercase; }
-.deed .facts { padding: 0 12px; }
+/* Property details: name with its set swatch, then rents as tiles */
+.prop { margin: 8px 0; }
+.prop-head { display: flex; align-items: center; gap: 12px; }
+.prop-head > div { display: flex; flex-direction: column; }
+.prop-head strong { font-size: 1.2rem; }
+.prop-head .swatch { width: 40px; height: 40px; border-radius: 10px; font-size: 1.1rem; border: 1px solid var(--ink); }
+.rent-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 12px 0; }
+.rent-tile { border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; display: flex; flex-direction: column; background: #fffaf0; }
+.rent-tile span { font-size: 0.75rem; color: var(--muted); }
+.rent-tile strong { font-variant-numeric: tabular-nums; }
+.rent-tile.on { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
 .tok { border: 1px solid var(--ink); }

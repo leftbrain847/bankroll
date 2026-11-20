@@ -145,15 +145,18 @@ export function createBoardView(onTap: (pos: number) => void, onStep: () => void
     g.lineCap = 'round';
     g.lineJoin = 'round';
     if (sp.corner === 'start') {
-      // A bold arrow sweeping in the direction of play, over a band of money green.
-      g.fillStyle = '#2e8b57';
-      g.fillRect(r.x + s * 0.12, y + s * 0.18, s * 0.76, s * 0.12);
-      g.fillStyle = INK;
-      // The arrow points left: from Start, play runs left along the bottom edge.
-      poly([[x + s * 0.3, y - s * 0.12], [x - s * 0.12, y - s * 0.12], [x - s * 0.12, y - s * 0.24], [x - s * 0.34, y - s * 0.04], [x - s * 0.12, y + s * 0.16], [x - s * 0.12, y + s * 0.04], [x + s * 0.3, y + s * 0.04]]);
-      g.fill();
+      // A stack of three coins.
+      for (let i = 0; i < 3; i++) {
+        const cy = y + s * 0.16 - i * s * 0.1;
+        g.fillStyle = '#e6b422';
+        g.beginPath();
+        g.ellipse(x, cy, s * 0.22, s * 0.07, 0, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+      }
+      text('$', x, y - s * 0.04, s * 0.11, INK, 900);
       text('START', x, r.y + s * 0.2, s * 0.17, INK, 800);
-      text('collect salary', x, r.y + s * 0.88, s * 0.085, INK, 500);
+      text('payday each lap', x, r.y + s * 0.88, s * 0.085, INK, 500);
     } else if (sp.corner === 'jail') {
       // A padlock.
       g.beginPath();
@@ -166,7 +169,7 @@ export function createBoardView(onTap: (pos: number) => void, onStep: () => void
       g.fillRect(x - s * 0.015, y + s * 0.1, s * 0.03, s * 0.09);
       g.fillStyle = INK;
       text('JAIL', x, r.y + s * 0.16, s * 0.15, INK, 800);
-      text('passing by is fine', x, r.y + s * 0.88, s * 0.085, INK, 500);
+      text('no effect if you land', x, r.y + s * 0.88, s * 0.08, INK, 500);
     } else if (sp.corner === 'rest') {
       // A park bench.
       g.fillRect(x - s * 0.28, y - s * 0.06, s * 0.56, s * 0.05);
@@ -193,7 +196,7 @@ export function createBoardView(onTap: (pos: number) => void, onStep: () => void
         g.stroke();
       }
       text('ARRESTED', x, r.y + s * 0.15, s * 0.14, INK, 800);
-      text('go to Jail', x, r.y + s * 0.86, s * 0.09, INK, 500);
+      text('move to Jail', x, r.y + s * 0.86, s * 0.09, INK, 500);
     }
   }
 
@@ -330,7 +333,7 @@ export function createBoardView(onTap: (pos: number) => void, onStep: () => void
             g.stroke();
           }
         } else {
-          text(grp.mark, ox, oy + 0.5, Math.min(outer.w, outer.h) * 0.55, grp.color === '#2b2d3a' ? '#fff' : 'rgba(20,14,8,0.7)', 700);
+          text(grp.mark, ox, oy + 0.5, Math.min(outer.w, outer.h) * 0.55, 'rgba(20,14,8,0.7)', 700);
         }
         const [ix, iy] = centre(inner);
         // Name and price, written along the cell.

@@ -1,6 +1,6 @@
 /**
  * The Bankroll loop: 40 spaces, numbered 0-39 in play order. The layout of kinds (which space is a corner, a lot,
- * a subway, a utilities, a draw or a levy) follows the standard trading-game loop; every name here is Bankroll's own.
+ * a subway, a utilities, a draw or a levy) is the 40-space property-trading loop; every name here is Bankroll's own.
  */
 import { ECONOMY, lotTerms, type EconomyConfig, type LotTerms } from './economy';
 
@@ -17,7 +17,7 @@ export type Space =
 
 export interface Group {
   name: string;
-  /** Display colour (UI only). The sequence deliberately avoids the classic board's colour order. */
+  /** Display colour (UI only). Bankroll's own palette and order. */
   color: string;
   /** A short mark drawn on each lot, so groups read without colour. */
   mark: string;
@@ -37,7 +37,7 @@ const GROUP_DEFS: { name: string; color: string; mark: string; lots: [number, st
   { name: 'University Hill', color: '#6fd6f2', mark: '❄', lots: [[21, 'College Street'], [23, 'Scholar Avenue'], [24, 'Belltower Place']] },
   { name: 'Theater Row', color: '#e04aa0', mark: '✿', lots: [[26, 'Marquee Street'], [27, 'Encore Avenue'], [29, 'Curtain Square']] },
   { name: 'Financial District', color: '#e8b931', mark: '◆', lots: [[31, 'Ledger Street'], [32, 'Exchange Place'], [34, 'Vault Avenue']] },
-  { name: 'Skyline', color: '#2b2d3a', mark: '★', lots: [[37, 'Summit Heights'], [39, 'Crown Tower']] },
+  { name: 'Skyline', color: '#b8733a', mark: '★', lots: [[37, 'Summit Heights'], [39, 'Crown Tower']] },
 ];
 
 const OTHER: Record<number, Space> = {
@@ -47,13 +47,13 @@ const OTHER: Record<number, Space> = {
   5: { kind: 'subway', name: 'Harbor Line', price: 0 },
   7: { kind: 'draw', deck: 'news', name: 'News' },
   10: { kind: 'corner', corner: 'jail', name: 'Jail' },
-  12: { kind: 'utility', name: 'Power Company', price: 0 },
+  12: { kind: 'utility', name: 'Power Grid', price: 0 },
   15: { kind: 'subway', name: 'Midtown Line', price: 0 },
   17: { kind: 'draw', deck: 'civic', name: 'Civic' },
   20: { kind: 'corner', corner: 'rest', name: 'Rest Stop' },
   22: { kind: 'draw', deck: 'news', name: 'News' },
   25: { kind: 'subway', name: 'Uptown Line', price: 0 },
-  28: { kind: 'utility', name: 'Water Company', price: 0 },
+  28: { kind: 'utility', name: 'Water Main', price: 0 },
   30: { kind: 'corner', corner: 'arrest', name: 'Arrested' },
   33: { kind: 'draw', deck: 'civic', name: 'Civic' },
   35: { kind: 'subway', name: 'Airport Line', price: 0 },
