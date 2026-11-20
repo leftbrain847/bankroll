@@ -151,7 +151,7 @@ describe('movement and Launch', () => {
     s = roll(s, 2, 2); // -> 4, Dock Levy
     expect(s.phase.kind).toBe('roll');
     expect(s.current).toBe(0);
-    s = roll(s, 3, 3); // -> 10, just visiting
+    s = roll(s, 3, 3); // -> 10, only landing there
     expect(s.players[0]!.inQuarantine).toBe(false);
     s = roll(s, 1, 1); // third doubles
     expect(s.players[0]!.pos).toBe(QUARANTINE);
@@ -502,6 +502,16 @@ describe('cards in play', () => {
     const s = drawOn('signal', 's3', 33, 1, 2); // 36 -> Glowmere (11), passing Launch
     expect(s.players[0]!.pos).toBe(11);
     expect(s.players[0]!.cash).toBe(E.startingCash + E.salary);
+  });
+
+  it('a fly-to-Launch card pays the stipend even when landing on Launch pays nothing', () => {
+    let s = game();
+    s.decks.signal = ['s1', ...s.decks.signal.filter((c) => c !== 's1')];
+    s.players[0]!.pos = 4;
+    rig(s, 1, 2);
+    const r = apply(s, 0, { type: 'roll' }, { ...DEFAULT_RULES, salaryOnLanding: false });
+    expect(r.state?.players[0]!.pos).toBe(0);
+    expect(r.state?.players[0]!.cash).toBe(E.startingCash + E.salary);
   });
 
   it('nearest gate: pay double the toll', () => {

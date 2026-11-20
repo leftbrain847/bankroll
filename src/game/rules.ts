@@ -259,6 +259,9 @@ export function ownsGroup(s: GameState, rules: RulesConfig, p: number, g: number
   return !!grp && grp.lots.every((pos) => s.owner[pos] === p);
 }
 
+/** Refund for selling one building level, rounded down per level so every way of selling pays the same. */
+const refundPerLevel = (rules: RulesConfig, cost: number): number => Math.floor(cost * rules.economy.buildingRefund);
+
 const domesAt = (lvl: number): number => (lvl >= 1 && lvl <= 4 ? lvl : 0);
 const spiresAt = (lvl: number): number => (lvl === MAX_LEVEL ? 1 : 0);
 
@@ -294,7 +297,7 @@ export function liquidationValue(s: GameState, rules: RulesConfig, p: number): n
     if (o !== p) return;
     const sp = rules.board.spaces[pos];
     if (!sp || !isOwnable(sp)) return;
-    if (sp.kind === 'lot') total += Math.floor((s.level[pos] ?? 0) * sp.terms.buildCost * rules.economy.buildingRefund);
+    if (sp.kind === 'lot') total += (s.level[pos] ?? 0) * refundPerLevel(rules, sp.terms.buildCost);
     if (!s.mortgaged[pos]) total += Math.round(priceOf(sp) * rules.economy.mortgageShare);
   });
   return total;
@@ -347,10 +350,10 @@ function sendToQuarantine(s: GameState, rules: RulesConfig, p: number, why: stri
 }
 
 /** Move forward `steps`, paying salary on passing (or landing on) Launch. */
-function moveBy(s: GameState, rules: RulesConfig, p: number, steps: number): void {
+function moveBy(s: GameState, rules: RulesConfig, p: number, steps: number, alwaysPay = false): void {
   const pl = P(s, p);
   const raw = pl.pos + steps;
-  if (raw >= BOARD_SIZE && (rules.salaryOnLanding || raw % BOARD_SIZE !== 0)) passLaunch(s, rules, p);
+  if (raw >= BOARD_SIZE && (alwaysPay || rules.salaryOnLanding || raw % BOARD_SIZE !== 0)) passLaunch(s, rules, p);
   pl.pos = raw % BOARD_SIZE;
   log(s, rules, 'move', `${pl.name} moves to ${spaceName(rules, pl.pos)}.`, p);
 }
@@ -358,7 +361,8 @@ function moveBy(s: GameState, rules: RulesConfig, p: number, steps: number): voi
 function advanceTo(s: GameState, rules: RulesConfig, p: number, to: number): void {
   const pl = P(s, p);
   const steps = (to - pl.pos + BOARD_SIZE) % BOARD_SIZE || BOARD_SIZE;
-  moveBy(s, rules, p, steps);
+  // Cards that send you to Launch promise the stipend, whatever the landing rule.
+  moveBy(s, rules, p, steps, to === 0);
 }
 
 /**
@@ -616,7 +620,7 @@ export function planLevels(s: GameState, rules: RulesConfig, p: number, g: numbe
   if (s.bank.domes + returned < peakNeed) return { error: `the bank has only ${s.bank.domes} domes left` };
   if (spires > s.bank.spires) return { error: `the bank has only ${s.bank.spires} spires left` };
   const cost = up * unit;
-  const refund = Math.floor(down * unit * rules.economy.buildingRefund);
+  const refund = down * refundPerLevel(rules, unit);
   if (cost - refund > P(s, p).cash) return { error: `that costs ${money(cost - refund)}` };
   return { cost, refund, domes, spires };
 }
@@ -654,7 +658,7 @@ function goBankrupt(s: GameState, rules: RulesConfig, p: number, creditor: Credi
     const sp = rules.board.spaces[pos];
     const lvl = s.level[pos] ?? 0;
     if (sp?.kind === 'lot' && lvl > 0) {
-      pl.cash += Math.floor(lvl * sp.terms.buildCost * e.buildingRefund);
+      pl.cash += lvl * refundPerLevel(rules, sp.terms.buildCost);
       s.bank.domes += domesAt(lvl);
       s.bank.spires += spiresAt(lvl);
       s.level[pos] = 0;
